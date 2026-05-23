@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# SQLite cache databases and generated reports
+reports/cache.db
+reports/
+report/report.html
+report/report.json
+integration_log.jsonl
+*.log
+
+# Local analysis and review artifacts
+graphify-out/
+docs/reviews/

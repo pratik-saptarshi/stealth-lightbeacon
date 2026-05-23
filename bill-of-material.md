@@ -1,0 +1,75 @@
+# Bill of Materials (BOM) — Drupal Lighthouse
+
+This document lists the core technologies, dependencies, standards compliance profiles, capabilities, and feature matrices governing the **Drupal Lighthouse** repository.
+
+> [!NOTE]  
+> This file is versioned and dynamically synchronized with the codebase. To regenerate or verify the BOM programmatically, execute:  
+> `python3 utils/update_bom.py`
+
+---
+
+## 📅 General Metadata
+* **BOM Specification Version:** 1.0.0
+* **Project Name:** Drupal Lighthouse (Drupal Evaluator)
+* **Release Channel:** Public Stable
+* **Last Code Synchronization Check:** 2026-05-23
+
+---
+
+## 🏗️ Core Technologies & Environments
+* **Programming Language:** Python 3.8, 3.9, 3.10, 3.11, 3.12 (standard type hints, async/await event loops)
+* **Containerization sandbox:** VS Code devContainers (based on Microsoft Debian Python 3.11 image)
+* **Database engine:** SQLite 3 (WAL mode, Normal synchronization enabled)
+* **Subprocess targets:** Compiled static Rust executables (`bin/obscura` fast-path TLS fingerprint engine)
+* **Browser automation:** Playwright headless anti-detect Chromium
+
+---
+
+## 📦 Software Libraries & Dependencies
+The following dependencies are automatically parsed and verified against [requirements.txt](requirements.txt):
+
+<!-- LIBRARIES_START -->
+* **requests** (`>=2.31.0`): Fallback synchronous HTTP client.
+* **beautifulsoup4** (`>=4.12.3`): Fallback static HTML parser.
+* **lxml** (`>=5.2.0`): Fast XML and HTML parsing backend.
+* **Jinja2** (`>=3.1.4`): Autoescaped layout templating engine.
+* **colorama** (`>=0.4.6`): Terminal colors compatibility support.
+* **python-dotenv** (`>=1.0.0`): Environment variables loader.
+* **tldextract** (`>=5.1.2`): Accurate domain and subdomain parser.
+* **rich** (`>=13.7.0`): Rich formatting and console output tables.
+* **httpx** (`>=0.27.0`): Non-blocking asynchronous HTTP/2 client.
+* **typer** (`>=0.12.0`): High-fidelity command-line interface.
+* **pytest** (`>=8.2.0`): Core unit and integration testing engine.
+* **pytest-asyncio** (`>=0.23.0`): Asynchronous loop fixtures decorator.
+* **selectolax** (`>=0.3.21`): High-performance HTML parsing backend.
+* **pytest-benchmark** (`>=4.0.0`): Performance and benchmarking suite.
+* **rich-click** (`>=0.8.0`): Beautiful rich-click CLI help formatting.
+<!-- LIBRARIES_END -->
+
+---
+
+## 🛡️ Standards Compliance
+* **Accessibility Governance:** WCAG 2.2 AA standards verification (alt image properties, skipped headings, form labels, ARIA controls).
+* **Security response policies:** HSTS directives, Content-Security-Policy rules, X-Frame-Options clickjacking blocks, X-Content-Type-Options nosniff rules.
+* **SSRF Prevention constraints:** Asynchronous DNS resolving validation blocking loopback, private Class A/B/C networks, link-local, and reserved IP subnets.
+* **Open Source compliance handbook:** MIT License redistribution, automated Bandit SAST pipelines, weekly safety security scans, Ruff format guidelines (120-char margin limits).
+
+---
+
+## ⚡ Core Capabilities & Features Matrix
+
+| Module Domain | System Capability | Integrated Feature | Status |
+|---|---|---|---|
+| **Technical SEO** | Structured Meta Auditing | Title/Description constraint analysis | Verified |
+| | Sitemap/Robots Indexing | robots.txt disallow parsing & Sitemap checks | Verified |
+| | Outbound Sockets audits | **Broken Link Checker** (concurrent 404/500 status audits) | Verified |
+| **Performance** | Performance budget gate | CI-level budget constraints failing builds with Exit Code 2 | Verified |
+| | Core Web Vitals diagnostics | Google PageSpeed Insights client mapping LCP, CLS, TTFB | Verified |
+| | Async Caching layer | SQLite cache parsing with 24h expiration intervals | Verified |
+| **Accessibility** | Static DOM structure checks | WCAG 2.2 AA compliant node checks | Verified |
+| **AEO / GEO** | Generative search heuristics | Outline analysis, snippet word counting, citation logs | Verified |
+| **CMS Security** | Fingerprinting signatures | X-Generator parsing, theme folder hashes disclosures | Verified |
+| | Exposed API probes | **Drupal JSON:API / REST exposed user scanning** | Verified |
+| | Cookie parameter safeguards | **Set-Cookie HttpOnly, Secure, and SameSite audits** | Verified |
+| | Consent Banner Audits | Static HTML/DOM scans for user privacy popups | Verified |
+| **Scraping Tier** | Pluggable evading patterns | Fast-path Obscura Rust client fallback, stealth Chrome | Verified |

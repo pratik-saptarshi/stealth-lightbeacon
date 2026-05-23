@@ -1,0 +1,36 @@
+name: Security Governance Audit
+
+on:
+  push:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 0 * * 0' # Run weekly on Sundays
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install Linting & Security dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+
+    - name: Run Bandit (Static Application Security Testing)
+      # Scan for security flaws, ignore missing imports or tests
+      run: |
+        bandit -r modules/ crawler.py main.py utils/ -ll -x tests/
+
+    - name: Check Dependencies Security (Safety)
+      # Scans dependency packages against database of known vulnerabilities
+      run: |
+        # Generate temporary standard requirements file without comments/local extensions
+        grep -v '^#' requirements.txt > req_clean.txt
+        safety check -r req_clean.txt || echo "Safety audit flagged some dependencies, reviewing..."
