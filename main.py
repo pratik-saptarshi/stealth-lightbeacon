@@ -294,7 +294,7 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
 
 @app.command()
 def evaluate(
-    url: typer.Argument(..., help="The target URL of the Drupal site to scan."),
+    url: str = typer.Argument(..., help="The target URL of the Drupal site to scan."),
     output_dir: Optional[str] = typer.Option(None, "--out", "-o", help="Custom output folder path for reports."),
     allow_private: bool = typer.Option(False, "--allow-private", help="Permit scans of private and loopback IP addresses (disables SSRF protection)."),
     crawl_depth: int = typer.Option(0, "--crawl-depth", "-d", help="Max recursion depth for crawl links discovery (0 resolves only the target URL)."),
