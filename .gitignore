@@ -21,3 +21,4 @@ integration_log.jsonl
 # Local analysis and review artifacts
 graphify-out/
 docs/reviews/
+.worktrees/
