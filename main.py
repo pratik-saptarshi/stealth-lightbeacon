@@ -1,5 +1,5 @@
 """
-main.py — Main orchestration and Typer CLI entry point for the Drupal Evaluator.
+main.py — Main orchestration and Typer CLI entry point for Stealth Lightbeacon.
 """
 
 import asyncio
@@ -30,7 +30,7 @@ try:
 except ImportError:
     pass
 
-app = typer.Typer(help="Drupal Evaluator: Diagnostic Audit Tool for SEO, Performance, and Accessibility.")
+app = typer.Typer(help="Stealth Lightbeacon: Diagnostic Audit Tool for SEO, Performance, and Accessibility.")
 console = Console()
 
 async def run_evaluation(
@@ -186,7 +186,7 @@ def print_terminal_report(url: str, results: List[EvaluationResult]):
     console.print(Panel(
         f"[bold white]Audit Target:[/bold white] [cyan]{url}[/cyan]\n"
         f"[bold white]Total Modules Checked:[/bold white] {len(results)}",
-        title="[bold green]Drupal Evaluator Diagnostics Summary[/bold green]",
+        title="[bold green]Stealth Lightbeacon Diagnostics Summary[/bold green]",
         expand=False
     ))
     

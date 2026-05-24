@@ -1,12 +1,12 @@
-# Drupal Lighthouse — Architecture & Technical Workflows
+# Stealth Lightbeacon — Architecture & Technical Workflows
 
-This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Drupal Lighthouse** engine.
+This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine.
 
 ---
 
 ## 1. Core Architecture Overview
 
-Drupal Lighthouse is engineered as a highly decoupled, concurrent **asynchronous plugin framework** in Python. High concurrency is achieved using native `asyncio` loop schedules and non-blocking `httpx` async clients, avoiding thread overhead and locking bottlenecks.
+Stealth Lightbeacon is engineered as a highly decoupled, concurrent **asynchronous plugin framework** in Python. High concurrency is achieved using native `asyncio` loop schedules and non-blocking `httpx` async clients, avoiding thread overhead and locking bottlenecks.
 
 ```
                   ┌────────────────────────────────────────┐

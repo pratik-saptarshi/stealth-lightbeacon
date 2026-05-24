@@ -1,5 +1,5 @@
 """
-config.py — Shared configuration and constants for the Drupal Evaluator.
+config.py — Shared configuration and constants for Stealth Lightbeacon.
 """
 
 import os
@@ -15,8 +15,8 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15       # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "DrupalEvaluator/1.0 (+https://github.com/stealth-lightbeacon/drupal-evaluator) "
-        "Mozilla/5.0 (compatible; DrupalEvaluatorBot/1.0)"
+        "StealthLightbeacon/1.0 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.0)"
     )
 }
 

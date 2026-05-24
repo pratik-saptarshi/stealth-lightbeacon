@@ -1,6 +1,6 @@
-# Bill of Materials (BOM) — Drupal Lighthouse
+# Bill of Materials (BOM) — Stealth Lightbeacon
 
-This document lists the core technologies, dependencies, standards compliance profiles, capabilities, and feature matrices governing the **Drupal Lighthouse** repository.
+This document lists the core technologies, dependencies, standards compliance profiles, capabilities, and feature matrices governing the **Stealth Lightbeacon** repository.
 
 > [!NOTE]  
 > This file is versioned and dynamically synchronized with the codebase. To regenerate or verify the BOM programmatically, execute:  
@@ -10,7 +10,7 @@ This document lists the core technologies, dependencies, standards compliance pr
 
 ## 📅 General Metadata
 * **BOM Specification Version:** 1.0.0
-* **Project Name:** Drupal Lighthouse (Drupal Evaluator)
+* **Project Name:** Stealth Lightbeacon
 * **Release Channel:** Public Stable
 * **Last Code Synchronization Check:** 2026-05-23
 
