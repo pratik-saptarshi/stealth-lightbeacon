@@ -1,0 +1,66 @@
+import json
+import xml.etree.ElementTree as ET
+
+import pytest
+
+from modules.base import EvaluationResult, Issue
+from report.formats import build_report_payload, render_report_format
+
+
+def _sample_results():
+    return [
+        EvaluationResult(
+            domain="Technical SEO",
+            score=8.5,
+            issues=(
+                Issue(
+                    id="R-SEO-TITLE-LEN",
+                    severity="warning",
+                    message="Title is too long.",
+                    location="<title>",
+                    remedy="Shorten the title.",
+                ),
+            ),
+            metadata={"crawled_pages_count": 1},
+        ),
+        EvaluationResult(
+            domain="Accessibility (WCAG 2.2 AA)",
+            score=9.0,
+            issues=tuple(),
+            metadata={"crawled_pages_count": 1},
+        ),
+    ]
+
+
+def test_report_payload_and_markdown_rendering():
+    payload = build_report_payload("https://example.com", _sample_results())
+
+    assert payload["target_url"] == "https://example.com"
+    assert payload["average_score"] == pytest.approx(8.75)
+    assert payload["total_issues"] == 1
+    assert payload["domains"][0]["name"] == "Technical SEO"
+
+    markdown = render_report_format("llm", payload)
+    assert "# Stealth Lightbeacon Audit Report" in markdown
+    assert "## Technical SEO" in markdown
+    assert "- `R-SEO-TITLE-LEN`" in markdown
+    assert "<html" not in markdown.lower()
+
+
+def test_geo_xml_rendering_is_well_formed():
+    payload = build_report_payload("https://example.com", _sample_results())
+
+    xml_text = render_report_format("geo-xml", payload)
+    root = ET.fromstring(xml_text)
+
+    assert root.tag == "geoAuditReport"
+    assert root.findtext("targetUrl") == "https://example.com"
+    assert root.find("domains/domain") is not None
+    assert root.find("domains/domain/name").text == "Technical SEO"
+
+
+def test_unknown_report_format_is_rejected():
+    payload = build_report_payload("https://example.com", _sample_results())
+
+    with pytest.raises(ValueError):
+        render_report_format("pdf", payload)

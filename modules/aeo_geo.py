@@ -27,6 +27,7 @@ class AeoGeoEvaluator(BaseEvaluator):
         soup = HtmlParser(html)
         issues = []
         scores = []
+        readiness_components = {}
         json_ld_payloads = [script.string or "" for script in soup.find_all("script", type="application/ld+json")]
         
         # Strip script/style tags for text analysis after preserving JSON-LD references.
@@ -80,6 +81,37 @@ class AeoGeoEvaluator(BaseEvaluator):
             scores.append(7.0)
         else:
             scores.append(10.0)
+        readiness_components["answer_clarity"] = scores[-1]
+
+        # ─── 1b. Heading Hierarchy Readiness ───────────────────────────
+        heading_scores = [10.0]
+        headings = soup.find_all(re.compile(r"^h[1-6]$"))
+        if not headings:
+            issues.append(Issue(
+                id="R-AEO-HEADINGS-MISS",
+                severity=config.SEVERITY_WARNING,
+                message="No visible heading structure was detected for answer hierarchy.",
+                location="Headers (H1-H6)",
+                remedy="Use semantic headings to separate topics and answer blocks."
+            ))
+            heading_scores = [6.0]
+        else:
+            prev_level = None
+            for heading in headings:
+                level = int(heading.name[1])
+                if prev_level is not None and level > prev_level + 1:
+                    issues.append(Issue(
+                        id="R-AEO-HEAD-SKIP",
+                        severity=config.SEVERITY_WARNING,
+                        message=f"Heading hierarchy skips from <h{prev_level}> to <{heading.name}>.",
+                        location="Headers (H1-H6)",
+                        remedy="Keep heading levels sequential to help answer extraction systems follow structure."
+                    ))
+                    heading_scores.append(6.0)
+                    break
+                prev_level = level
+        scores.append(sum(heading_scores) / len(heading_scores))
+        readiness_components["heading_hierarchy"] = scores[-1]
 
         # ─── 2. GEO: Authoritative Outbound Citations ───────────────────
         links = soup.find_all("a", href=True)
@@ -114,11 +146,13 @@ class AeoGeoEvaluator(BaseEvaluator):
             scores.append(8.0)
         else:
             scores.append(10.0)
+        readiness_components["source_quality"] = scores[-1]
 
         # ─── 3. GEO: Author E-E-A-T schemas & Recency ────────────────────
         has_author_details = False
         has_recency = False
         author_schema_required = len(json_ld_payloads) == 0
+        structured_schema_found = False
         
         for script_payload in json_ld_payloads:
             try:
@@ -129,9 +163,25 @@ class AeoGeoEvaluator(BaseEvaluator):
                         schema_type = obj.get("@type")
                         if isinstance(schema_type, str) and schema_type in {"Article", "BlogPosting", "NewsArticle", "FAQPage", "HowTo"}:
                             return True
+                        if isinstance(schema_type, list) and any(item in {"Article", "BlogPosting", "NewsArticle", "FAQPage", "HowTo"} for item in schema_type):
+                            return True
+                        if schema_type:
+                            return True
                         return any(schema_requires_author(v) for v in obj.values())
                     if isinstance(obj, list):
                         return any(schema_requires_author(item) for item in obj)
+                    return False
+
+                def has_target_structured_data(obj):
+                    if isinstance(obj, dict):
+                        schema_type = obj.get("@type")
+                        if isinstance(schema_type, str) and schema_type in {"Article", "FAQPage", "HowTo", "BlogPosting", "NewsArticle"}:
+                            return True
+                        if isinstance(schema_type, list) and any(item in {"Article", "FAQPage", "HowTo", "BlogPosting", "NewsArticle"} for item in schema_type):
+                            return True
+                        return any(has_target_structured_data(v) for v in obj.values())
+                    if isinstance(obj, list):
+                        return any(has_target_structured_data(item) for item in obj)
                     return False
                 
                 # Check for author profile within Article or WebPage
@@ -170,9 +220,23 @@ class AeoGeoEvaluator(BaseEvaluator):
                     has_recency = True
                 if schema_requires_author(ld_json):
                     author_schema_required = True
+                if has_target_structured_data(ld_json):
+                    structured_schema_found = True
             except Exception:
                 pass
-                
+
+        if len(json_ld_payloads) and not structured_schema_found:
+            issues.append(Issue(
+                id="R-AEO-LD-STRUCT",
+                severity=config.SEVERITY_WARNING,
+                message="Structured data is present but does not advertise answer-oriented schema types.",
+                location="JSON-LD script blocks",
+                remedy="Prefer Article, FAQPage, or HowTo schema to make the page easier for answer engines to classify."
+            ))
+            scores.append(7.0)
+        elif len(json_ld_payloads):
+            scores.append(10.0)
+
         if author_schema_required and not has_author_details:
             issues.append(Issue(
                 id="R-GEO-EEAT-AUTHOR",
@@ -196,6 +260,7 @@ class AeoGeoEvaluator(BaseEvaluator):
             scores.append(8.0)
         else:
             scores.append(10.0)
+        readiness_components["structured_data"] = scores[-1]
 
         # ─── 4. GEO: Keyword Stuffing Densities ──────────────────────────
         # Simple token clean-up and word frequencies
@@ -228,7 +293,8 @@ class AeoGeoEvaluator(BaseEvaluator):
                     
         if not stuffing_detected:
             scores.append(10.0)
-            
+        readiness_components["content_naturalness"] = scores[-1]
+
         final_score = sum(scores) / len(scores) if scores else 10.0
         
         return EvaluationResult(
@@ -240,6 +306,7 @@ class AeoGeoEvaluator(BaseEvaluator):
                 "authority_citations": authority_citations,
                 "qa_outline_found": qa_detected,
                 "eeat_author_found": has_author_details,
-                "keyword_stuffing_alert": stuffing_detected
+                "keyword_stuffing_alert": stuffing_detected,
+                "readiness_components": readiness_components
             }
         )

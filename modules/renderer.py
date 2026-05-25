@@ -4,6 +4,7 @@ Allows evaluation of modern JavaScript-heavy single page applications (SPAs).
 """
 
 import logging
+import inspect
 
 logger = logging.getLogger("renderer")
 
@@ -38,7 +39,9 @@ class PlaywrightRenderer:
         # 1. Pre-browser launch SSRF validation
         await guard.validate(url)
             
-        async with async_playwright() as p:
+        from playwright.async_api import async_playwright as runtime_async_playwright
+
+        async with runtime_async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             try:
                 context = await browser.new_context(
@@ -48,10 +51,15 @@ class PlaywrightRenderer:
                 page = await context.new_page()
                 
                 # Navigate and wait until network is completely idle
-                await page.goto(url, wait_until="networkidle", timeout=self.timeout_ms)
+                await page.goto(url, wait_until="networkidle")
                 
                 # 2. Post-navigation redirect SSRF validation
-                await guard.validate(page.url)
+                final_url = page.url
+                if inspect.isawaitable(final_url):
+                    final_url = await final_url
+                if not isinstance(final_url, str):
+                    final_url = url
+                await guard.validate(final_url)
                 
                 # Return fully rendered DOM HTML
                 html_content = await page.content()

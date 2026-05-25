@@ -1,0 +1,15 @@
+image: python:3.11
+
+pipelines:
+  default:
+    - step:
+        name: Audit
+        script:
+          - export SLB_TARGET_URL="${SLB_TARGET_URL}"
+          - export SLB_AUTH_TOKEN="${SLB_AUTH_TOKEN}"
+          - export SLB_AUDITS="${SLB_AUDITS}"
+          - export SLB_FAIL_ON_CRITICAL="1"
+          - pip install -r requirements.txt
+          - python main.py evaluate --format both --out reports
+        artifacts:
+          - reports/report.json

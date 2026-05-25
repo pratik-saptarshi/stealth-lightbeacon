@@ -20,10 +20,12 @@ except ImportError:
 
 # --- BS4 Imports ---
 from bs4 import BeautifulSoup, Tag
+from utils.selector_resolver import SelectorResolver
 
 # --- Global Backend Configuration ---
 # By default, use selectolax if available, else fallback to bs4.
 BACKEND = "selectolax" if SELECTOLAX_AVAILABLE else "bs4"
+_SELECTOR_RESOLVER = SelectorResolver()
 
 def force_backend(name: str):
     """
@@ -418,7 +420,10 @@ class HtmlParser:
 
     def find(self, name=None, attrs=None, **kwargs) -> Optional[HtmlNode]:
         p = self._parser.find(name, attrs, **kwargs)
-        return HtmlNode(p) if p else None
+        if p:
+            return HtmlNode(p)
+        resolved = _SELECTOR_RESOLVER.resolve(self, name, attrs, **kwargs)
+        return HtmlNode(resolved.node) if resolved.node else None
 
     def find_all(self, name=None, attrs=None, **kwargs) -> List[HtmlNode]:
         res = self._parser.find_all(name, attrs, **kwargs)

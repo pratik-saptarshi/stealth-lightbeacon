@@ -15,10 +15,18 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15       # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "StealthLightbeacon/1.1.8 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
-        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.1.8)"
+        "StealthLightbeacon/1.1.9 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.1.9)"
     )
 }
+
+
+def build_request_headers(auth_token: str | None = None) -> dict:
+    headers = dict(REQUEST_HEADERS)
+    token = auth_token or os.getenv("SLB_AUTH_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
 # ─── Scoring Thresholds ────────────────────────────────────────────────────────
 # Core Web Vitals (Google thresholds)

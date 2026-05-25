@@ -56,9 +56,11 @@ Stealth Lightbeacon is engineered as a highly decoupled, concurrent **asynchrono
                                      ▼
                   ┌────────────────────────────────────────┐
                   │            Report Generator            │
-                  │          (report/generator.py)         │
+                  │   (report/generator.py + formats.py)   │
                   └────────────────────────────────────────┘
 ```
+
+The report stage renders JSON, HTML, LLM Markdown, or GEO XML from one normalized payload so downstream consumers can choose the format they need without changing the audit pipeline.
 
 ---
 
@@ -106,7 +108,7 @@ Evaluation domains are structured as independent diagnostic plugins executing co
 1. **Typer CLI Command:** Parses parameters, instantiates active evaluators, and triggers the non-blocking event loop.
 2. **Consolidation Pipeline:** Collects results from concurrent evaluators, merges metadata maps, and aggregates diagnostic issue logs.
 3. **Budget Compliance Check:** Feeds metrics into the `BudgetValidator` helper. If any Core Web Vitals or scores breach specified budget boundaries, throws exit code `2` to break build loops.
-4. **Autoescaped Jinja2 Output:** Exports diagnostic tables into JSON and renders a beautiful responsive Glassmorphism HTML dashboard securely, autoescaping page content to eliminate Stored XSS threats.
+4. **Autoescaped Jinja2 Output:** Exports diagnostic tables into JSON and renders a responsive HTML dashboard securely, autoescaping page content to eliminate Stored XSS threats. The shared payload also supports LLM Markdown and GEO XML renderers for orchestration workflows.
 
 ---
 
@@ -120,15 +122,28 @@ The Typer entrypoint in `main.py` exposes a single `evaluate` command with sever
 - `--persist`: Enables DuckDB + LanceDB persistence for runs, pages, and findings.
 - `--render`: Forces rendered DOM auditing through Playwright-backed scraping.
 - `--engine`: Selects the scraping strategy: `http`, `fast`, `stealth`, or `mcp`.
+- `--recon` and `--recon-auto`: Run advisory anti-bot reconnaissance before the crawl and optionally apply the recommended posture automatically.
+- `--format`: Selects the output renderer, including `json`, `html`, `both`, `llm`, and `geo-xml`.
 - `--crawl-depth` and `--max-urls`: Control recursive crawl breadth and circuit breaking.
 - `--check-links` and `--check-api`: Enable outbound link checks and Drupal API discovery.
 - `--budget`: Applies an external JSON performance budget after evaluation.
 
-The CLI also exposes `--out`, `--format`, `--http2`, and `--allow-private` for report routing, protocol tuning, and SSRF-boundary overrides.
+The CLI also exposes `--out`, `--http2`, and `--allow-private` for report routing, protocol tuning, and SSRF-boundary overrides.
 
 ---
 
-## 5. Dependency and Validation Pipeline
+## 5. Operational Support Services
+
+The supporting utility layer keeps the orchestration surface stable:
+
+- `utils/recon.py` performs advisory reconnaissance and selects a scraping posture.
+- `utils/selector_resolver.py` and `modules/html_parser.py` repair selectors when small layout shifts break exact matches.
+- `utils/crawl_diff.py` and `utils/ontology.py` compare audit payloads and persisted runs to highlight regressions and improvements.
+- `utils/agent_card.py` defines the stable agent-card manifest used by orchestration consumers.
+
+---
+
+## 6. Dependency and Validation Pipeline
 
 The repository now validates pinned dependencies before test execution:
 

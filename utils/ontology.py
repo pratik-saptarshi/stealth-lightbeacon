@@ -3,8 +3,9 @@ import json
 import hashlib
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.vector import make_vector
+from utils.crawl_diff import compare_audit_reports
 
 # Try lazy loading duckdb
 DUCKDB_AVAILABLE = False
@@ -92,6 +93,13 @@ class MockDuckDbConnection:
         # 6. SELECT 1 (health check)
         elif "SELECT 1" in sql_upper:
             return MockQueryResult((1,))
+        elif "SELECT REPORT_JSON" in sql_upper:
+            m = re.search(r"WHERE\s+RUN_ID\s*=\s*\?", sql, re.IGNORECASE)
+            if m:
+                run_id = params[0]
+                rows = [row for row in self.tables.get("audit_runs", []) if row.get("run_id") == run_id]
+                if rows:
+                    return MockQueryResult((rows[0].get("report_json"),))
             
         return self
 
@@ -304,7 +312,7 @@ class OntologyStore:
         self.vector_store.insert([vector_row])
 
     async def finish_run(self, run_id: str, report_dict: dict, page_count: int, domain_count: int):
-        completed_at = datetime.utcnow().isoformat()
+        completed_at = datetime.now(timezone.utc).isoformat()
         
         async with self.db_lock:
             self.duck_conn.execute(
@@ -327,6 +335,18 @@ class OntologyStore:
             "vector": vector
         }
         self.vector_store.insert([vector_row])
+
+    async def get_run_report(self, run_id: str) -> dict:
+        row = self.duck_conn.execute("SELECT report_json FROM audit_runs WHERE run_id = ?", [run_id]).fetchone()
+        if not row or row[0] is None:
+            raise ValueError(f"Missing audit run: {run_id}")
+        raw = row[0]
+        return json.loads(raw) if isinstance(raw, str) else raw
+
+    async def diff_runs(self, previous_run_id: str, current_run_id: str) -> dict:
+        previous = await self.get_run_report(previous_run_id)
+        current = await self.get_run_report(current_run_id)
+        return compare_audit_reports(previous, current)
 
     def search(self, query: str, limit: int = 10) -> list:
         """Performs a semantic search on LanceDB / Memory vector store."""

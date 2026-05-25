@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.1.9
+
+### Documentation
+
+- Documented the `llm` and `geo-xml` report formats, including their artifact paths.
+- Documented the CI env contract for `SLB_TARGET_URL`, `SLB_AUTH_TOKEN`, `SLB_AUDITS`, and `SLB_FAIL_ON_CRITICAL`.
+- Expanded the README and architecture guide to cover recon, selector repair, crawl diffs, and the agent-card manifest.
+
+### Runtime and Contracts
+
+- Bumped the runtime user-agent and report metadata to `1.1.9` so release output stays aligned with the new tag.
+- Added advisory reconnaissance (`--recon`, `--recon-auto`) and the supporting agent-orchestration contract surfaces.
+
 ## v1.1.8
 
 ### Documentation

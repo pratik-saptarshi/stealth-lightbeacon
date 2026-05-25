@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Branch Coverage](https://img.shields.io/badge/coverage-%E2%89%A564%25-brightgreen.svg)](pyproject.toml)
 
-An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories.
+An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories. It also exposes agent-friendly report formats and CI contracts for orchestration workflows.
 
 ---
 
@@ -47,6 +47,14 @@ graph TD
         Drupal[Drupal & Security drupal.py]
     end
 ```
+
+Operational controls extend the main crawl/evaluate loop:
+
+- `--recon` runs advisory anti-bot reconnaissance before the audit.
+- `--recon-auto` applies the recon-recommended scraping posture automatically.
+- Selector repair in `utils/selector_resolver.py` recovers from minor layout shifts during parsing.
+- `utils/crawl_diff.py` compares saved reports and runs to surface regressions and improvements.
+- `utils/agent_card.py` publishes a stable manifest for orchestration consumers.
 
 ---
 
@@ -119,14 +127,22 @@ python main.py evaluate "https://example.com"
 # Crawl pages recursively up to depth 2 (circuit-breaker limit of 10 pages)
 python main.py evaluate "https://example.com" --crawl-depth 2 --max-urls 10
 
-# Generate specific report formats (json, html, or both [default])
+# Generate specific report formats (json, html, both [default], llm, or geo-xml)
 python main.py evaluate "https://example.com" --format html
+python main.py evaluate "https://example.com" --format llm
+python main.py evaluate "https://example.com" --format geo-xml
 
 # Execute rendered DOM checks using headless anti-detect Chrome
 python main.py evaluate "https://example.com" --render
 
+# Run only a subset of evaluators and fail on critical findings
+python main.py evaluate "https://example.com" --audits security,performance --fail-on-critical
+
 # Select a specialized adversarial scraping engine
 python main.py evaluate "https://example.com" --engine stealth
+
+# Inspect the target with advisory reconnaissance before selecting a posture
+python main.py evaluate "https://example.com" --recon --recon-auto
 ```
 
 ### Command Line Options
@@ -134,17 +150,32 @@ python main.py evaluate "https://example.com" --engine stealth
 | Argument / Option | Default | Description |
 |---|---|---|
 | `URL` (Argument) | *Required* | Target URL of the Drupal site to scan. |
-| `--out`, `-o` | `reports/` | Custom output folder path for JSON and HTML reports. |
-| `--format`, `-f` | `both` | Report format selection: `json`, `html`, or `both`. |
+| `--out`, `-o` | `reports/` | Custom output folder path for generated report artifacts. |
+| `--format`, `-f` | `both` | Report format selection: `json`, `html`, `both`, `llm`, or `geo-xml`. |
+| `--audits` | *unset* | Optional comma-separated evaluator subset such as `security,performance`. |
+| `--fail-on-critical` | `False` | Exit with code 1 when any critical issue is present. |
 | `--allow-private` | `False` | Permits audits of loopback or private ranges (disables SSRF guard). |
 | `--crawl-depth`, `-d` | `0` | Max recursion depth for discovery crawling (0 = target URL only). |
 | `--max-urls`, `-n` | `10` | Max page count circuit-breaker boundary during crawling. |
 | `--render` | `False` | Run rendered-mode javascript audits via Playwright. |
 | `--engine` | `http` | Pluggable scraper strategy: `http`, `fast` (Obscura), `stealth` (Zendriver), or `mcp`. |
+| `--recon` | `False` | Run advisory reconnaissance before the crawl. |
+| `--recon-auto` | `False` | Apply the recon-recommended scraper posture automatically. |
 | `--http2` | `False` | Enable HTTP/2 connections. |
 | `--budget` | `None` | Path to JSON config specifying strict Core Web Vitals performance budgets. |
 | `--check-links` | `False` | Performs concurrent HTTP status validations on all outbound/same-domain links. |
 | `--check-api` | `False` | Asynchronously audits default Drupal REST & JSON:API directories for sensitive exposures. |
+
+### CI and Environment Variables
+
+The CLI also accepts environment-backed inputs for CI pipelines:
+
+- `SLB_TARGET_URL`: default target URL when the CLI is run without a positional argument.
+- `SLB_AUTH_TOKEN`: bearer token passed through to authenticated CI runs.
+- `SLB_AUDITS`: comma-separated evaluator subset used by CI recipes.
+- `SLB_FAIL_ON_CRITICAL`: fail the job when any critical finding is detected.
+
+Checked-in recipe templates live under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they treat those variables as the CI contract.
 
 ---
 
@@ -162,6 +193,14 @@ pytest --cov=modules --cov=crawler --cov=utils --cov-report=html
 ```
 
 Current CI validates the suite on Python 3.11 with dependency resolution checks against live PyPI indexes before tests run.
+
+## 📄 Output Artifacts
+
+- JSON reports are written to `reports/report.json` unless `--out` overrides the directory.
+- HTML reports are written to `reports/report.html` unless `--out` overrides the directory.
+- LLM-ready Markdown reports are written to `reports/report.md` unless `--out` overrides the directory.
+- GEO XML reports are written to `reports/report.xml` unless `--out` overrides the directory.
+- Console output includes a domain score table and a detailed issue log.
 
 ---
 

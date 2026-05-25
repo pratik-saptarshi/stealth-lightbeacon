@@ -9,7 +9,7 @@ import json
 import httpx
 import typer
 from typing import Optional, List, Dict, Any
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -18,6 +18,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 # Import configuration and constants
 import config
 from modules.base import BaseEvaluator, EvaluationResult, Issue
+from report.formats import build_report_payload, render_report_format
 
 # Initialize Typer and Rich Console
 try:
@@ -33,6 +34,85 @@ except ImportError:
 app = typer.Typer(help="Stealth Lightbeacon: Diagnostic Audit Tool for SEO, Performance, and Accessibility.")
 console = Console()
 
+
+@dataclass(frozen=True)
+class RuntimeSettings:
+    url: Optional[str]
+    output_dir: str
+    audits: List[str]
+    auth_token: str
+    fail_on_critical: bool
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def build_runtime_settings(
+    url: Optional[str],
+    audits: Optional[str],
+    fail_on_critical: bool,
+    output_dir: Optional[str] = None,
+    auth_token: Optional[str] = None,
+) -> RuntimeSettings:
+    resolved_url = (url or os.getenv("SLB_TARGET_URL", "")).strip() or None
+    resolved_audits = (audits or os.getenv("SLB_AUDITS", "")).strip()
+    resolved_auth = (auth_token or os.getenv("SLB_AUTH_TOKEN", "")).strip()
+    resolved_fail = fail_on_critical or _env_flag("SLB_FAIL_ON_CRITICAL", False)
+    audit_list = [item.strip() for item in resolved_audits.split(",") if item.strip()] if resolved_audits else []
+    return RuntimeSettings(
+        url=resolved_url,
+        output_dir=output_dir or config.REPORT_OUTPUT_DIR,
+        audits=audit_list,
+        auth_token=resolved_auth,
+        fail_on_critical=resolved_fail,
+    )
+
+
+def select_active_evaluators(audits: Optional[str] = None) -> List[BaseEvaluator]:
+    from modules.accessibility import AccessibilityEvaluator
+    from modules.aeo_geo import AeoGeoEvaluator
+    from modules.drupal import DrupalEvaluator
+    from modules.pagespeed import PagespeedEvaluator
+    from modules.seo import SeoEvaluator
+    from modules.ux import UxEvaluator
+
+    all_evaluators = [
+        ("seo", SeoEvaluator),
+        ("performance", PagespeedEvaluator),
+        ("accessibility", AccessibilityEvaluator),
+        ("aeo-geo", AeoGeoEvaluator),
+        ("ux", UxEvaluator),
+        ("security", DrupalEvaluator),
+    ]
+    if not audits:
+        return [factory() for _, factory in all_evaluators]
+
+    requested = {item.strip().lower() for item in audits.split(",") if item.strip()}
+    if not requested or requested.intersection({"all", "*"}):
+        return [factory() for _, factory in all_evaluators]
+
+    aliases = {
+        "seo": "seo",
+        "performance": "performance",
+        "accessibility": "accessibility",
+        "aeo": "aeo-geo",
+        "geo": "aeo-geo",
+        "aeo-geo": "aeo-geo",
+        "ux": "ux",
+        "security": "security",
+        "drupal": "security",
+    }
+    normalized = {aliases.get(item, item) for item in requested}
+    selected = []
+    for key, factory in all_evaluators:
+        if key in normalized:
+            selected.append(factory())
+    return selected
+
 async def run_evaluation(
     url: str,
     active_modules: List[BaseEvaluator],
@@ -45,7 +125,8 @@ async def run_evaluation(
     check_links: bool = False,
     check_api: bool = False,
     store: Optional[Any] = None,
-    run_id: Optional[str] = None
+    run_id: Optional[str] = None,
+    auth_token: Optional[str] = None
 ) -> List[EvaluationResult]:
     """
     Asynchronously crawls the target URL (recursively if crawl_depth > 0)
@@ -75,7 +156,11 @@ async def run_evaluation(
         renderer = PlaywrightRenderer()
     
     # 2. Crawl Target Site
-    client = httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT, headers=config.REQUEST_HEADERS, http2=http2)
+    client = httpx.AsyncClient(
+        timeout=config.REQUEST_TIMEOUT,
+        headers=config.build_request_headers(auth_token),
+        http2=http2,
+    )
     try:
         if crawl_depth > 0 or check_links:
             console.print(f"[bold blue]Initiating crawler (depth={crawl_depth if crawl_depth > 0 else 1}, max_urls={max_urls}, check_links={check_links})...[/bold blue]")
@@ -193,6 +278,7 @@ async def run_evaluation(
             report_dict = {
                 "targetUrl": url,
                 "average_score": sum(r.score for r in consolidated_results) / len(consolidated_results) if consolidated_results else 0.0,
+                "total_issues": sum(len(r.issues) for r in consolidated_results),
                 "domains": [
                     {
                         "domain": r.domain,
@@ -303,28 +389,7 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
     """
     Saves a detailed diagnostic report in JSON format.
     """
-    report_data = {
-        "target_url": url,
-        "average_score": sum(r.score for r in results) / len(results) if results else 0.0,
-        "domains": []
-    }
-    
-    for r in results:
-        domain_data = {
-            "domain": r.domain,
-            "score": r.score,
-            "metadata": r.metadata,
-            "issues": [
-                {
-                    "id": issue.id,
-                    "severity": issue.severity,
-                    "message": issue.message,
-                    "location": issue.location,
-                    "remedy": issue.remedy
-                } for issue in r.issues
-            ]
-        }
-        report_data["domains"].append(domain_data)
+    report_data = build_report_payload(url, results)
         
     os.makedirs(os.path.dirname(filepath) or '.', exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
@@ -335,13 +400,17 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
 def evaluate(
     url: Optional[str] = typer.Argument(None, help="The target URL of the Drupal site to scan (optional if using --watch or --search-semantic)."),
     output_dir: Optional[str] = typer.Option(None, "--out", "-o", help="Custom output folder path for reports."),
+    audits: Optional[str] = typer.Option(None, "--audits", help="Comma-separated evaluator subset such as security,performance."),
+    fail_on_critical: bool = typer.Option(False, "--fail-on-critical", help="Exit non-zero when any critical finding is present."),
     allow_private: bool = typer.Option(False, "--allow-private", help="Permit scans of private and loopback IP addresses (disables SSRF protection)."),
     crawl_depth: int = typer.Option(0, "--crawl-depth", "-d", help="Max recursion depth for crawl links discovery (0 resolves only the target URL)."),
     max_urls: int = typer.Option(10, "--max-urls", "-n", help="Max URLs circuit-breaker boundary during crawling."),
     render: bool = typer.Option(False, "--render", help="Enable JavaScript-rendered DOM auditing using headless Playwright."),
     http2: bool = typer.Option(False, "--http2", help="Enable HTTP/2 support for connection requests."),
-    report_format: str = typer.Option("both", "--format", "-f", help="Output report format: 'json', 'html', or 'both'."),
+    report_format: str = typer.Option("both", "--format", "-f", help="Output report format: 'json', 'html', 'both', 'llm', or 'geo-xml'."),
     engine: str = typer.Option("http", "--engine", help="Adversarial scraping engine strategy: 'http', 'fast', 'stealth', or 'mcp'."),
+    recon: bool = typer.Option(False, "--recon", help="Run advisory anti-bot reconnaissance before the audit."),
+    recon_auto: bool = typer.Option(False, "--recon-auto", help="Automatically apply the recon-recommended scraping posture."),
     budget: Optional[str] = typer.Option(None, "--budget", help="Path to a JSON configuration file defining performance budgets (e.g. LCP, CLS thresholds)."),
     check_links: bool = typer.Option(False, "--check-links", help="Enable Outbound Broken Link Checker scanning."),
     check_api: bool = typer.Option(False, "--check-api", help="Enable default Drupal JSON:API and REST directories scanning."),
@@ -394,17 +463,17 @@ def evaluate(
                 break
         return
 
-    if not url:
-        console.print("[bold red]Error: Missing argument 'URL'. Either specify a URL to evaluate, or run with --watch / --search-semantic.[/bold red]")
+    runtime = build_runtime_settings(
+        url=url,
+        audits=audits,
+        fail_on_critical=fail_on_critical,
+        output_dir=output_dir,
+    )
+    if not runtime.url:
+        console.print("[bold red]Error: Missing target URL. Set SLB_TARGET_URL or pass a URL argument.[/bold red]")
         raise typer.Exit(code=1)
 
     try:
-        from modules.seo import SeoEvaluator
-        from modules.pagespeed import PagespeedEvaluator
-        from modules.accessibility import AccessibilityEvaluator
-        from modules.aeo_geo import AeoGeoEvaluator
-        from modules.ux import UxEvaluator
-        from modules.drupal import DrupalEvaluator
         from report.generator import ReportGenerator
         from modules.scraping import ScrapingFactory
     except ImportError as e:
@@ -420,19 +489,27 @@ def evaluate(
             console.print(f"To install it, run: [bold green]pip install playwright && playwright install[/bold green]")
             raise typer.Exit(code=1)
         
-    active_evaluators = [
-        SeoEvaluator(),
-        PagespeedEvaluator(),
-        AccessibilityEvaluator(),
-        AeoGeoEvaluator(),
-        UxEvaluator(),
-        DrupalEvaluator()
-    ]
+    active_evaluators = select_active_evaluators(",".join(runtime.audits) if runtime.audits else None)
+    if not active_evaluators:
+        console.print("[bold red]Error: No evaluators selected for the requested audits.[/bold red]")
+        raise typer.Exit(code=1)
     
-    target_out_dir = output_dir or config.REPORT_OUTPUT_DIR
+    target_out_dir = runtime.output_dir
     json_path = os.path.join(target_out_dir, "report.json")
+    llm_path = os.path.join(target_out_dir, "report.md")
+    geo_xml_path = os.path.join(target_out_dir, "report.xml")
     
-    console.print(f"[bold blue]Starting audit for target website:[/bold blue] [cyan]{url}[/cyan]\n")
+    console.print(f"[bold blue]Starting audit for target website:[/bold blue] [cyan]{runtime.url}[/cyan]\n")
+
+    recon_recommendation = None
+    if recon or recon_auto:
+        from utils.recon import ReconAdvisor
+        recon_recommendation = asyncio.run(ReconAdvisor().inspect(runtime.url))
+        console.print(
+            f"[dim]Recon posture: {recon_recommendation.posture} | engine: {recon_recommendation.recommended_engine} | confidence: {recon_recommendation.confidence:.2f}[/dim]"
+        )
+        if recon_auto:
+            engine = recon_recommendation.recommended_engine
     
     # Resolve custom scraping engine if a specific strategy is selected
     scraping_engine = ScrapingFactory.get_engine(engine, allow_private=allow_private)
@@ -441,7 +518,7 @@ def evaluate(
     run_id = None
     if persist:
         import uuid
-        from datetime import datetime
+        from datetime import datetime, timezone
         from utils.ontology import OntologyStore
         store = OntologyStore()
         run_id = f"run_{uuid.uuid4().hex[:12]}"
@@ -449,8 +526,8 @@ def evaluate(
         # Call begin_run synchronously
         asyncio.run(store.begin_run(
             run_id=run_id,
-            target_url=url,
-            started_at=datetime.utcnow().isoformat(),
+            target_url=runtime.url,
+            started_at=datetime.now(timezone.utc).isoformat(),
             options={
                 "crawl_depth": crawl_depth,
                 "max_urls": max_urls,
@@ -458,7 +535,11 @@ def evaluate(
                 "http2": http2,
                 "engine": engine,
                 "check_links": check_links,
-                "check_api": check_api
+                "check_api": check_api,
+                "audits": runtime.audits,
+                "fail_on_critical": runtime.fail_on_critical,
+                "recon": recon,
+                "recon_auto": recon_auto,
             }
         ))
 
@@ -471,7 +552,7 @@ def evaluate(
             progress.add_task(description="Crawling and running evaluator algorithms...", total=None)
             # Execute async loop
             results = asyncio.run(run_evaluation(
-                url,
+                runtime.url,
                 active_evaluators,
                 allow_private=allow_private,
                 crawl_depth=crawl_depth,
@@ -482,23 +563,40 @@ def evaluate(
                 check_links=check_links,
                 check_api=check_api,
                 store=store,
-                run_id=run_id
+                run_id=run_id,
+                auth_token=runtime.auth_token,
             ))
     finally:
         if store:
             store.close()
         
     # Render Console Tables
-    print_terminal_report(url, results)
+    print_terminal_report(runtime.url, results)
     
     # Save Reports
-    if report_format.lower() in ["json", "both"]:
-        save_json_report(url, results, json_path)
+    payload = build_report_payload(runtime.url, results)
+    try:
+        if report_format.lower() in ["json", "both"]:
+            save_json_report(runtime.url, results, json_path)
+        elif report_format.lower() == "llm":
+            with open(llm_path, "w", encoding="utf-8") as handle:
+                handle.write(render_report_format("llm", payload))
+            console.print(f"[bold green]✔ Diagnostic Markdown report written to: {llm_path}[/bold green]")
+        elif report_format.lower() == "geo-xml":
+            with open(geo_xml_path, "w", encoding="utf-8") as handle:
+                handle.write(render_report_format("geo-xml", payload))
+            console.print(f"[bold green]✔ Diagnostic GEO XML report written to: {geo_xml_path}[/bold green]")
+        elif report_format.lower() != "html":
+            console.print(f"[bold red]Error: Unsupported report format '{report_format}'.[/bold red]")
+            raise typer.Exit(code=1)
+    except ValueError as e:
+        console.print(f"[bold red]Error: {e}[/bold red]")
+        raise typer.Exit(code=1)
     
     # Generate HTML Report
     if report_format.lower() in ["html", "both"]:
         try:
-            ReportGenerator.generate_report(url, results, target_out_dir)
+            ReportGenerator.generate_report(runtime.url, results, target_out_dir)
             console.print(f"[bold green]✔ Diagnostic HTML report written to: {os.path.join(target_out_dir, 'report.html')}[/bold green]")
         except Exception as e:
             console.print(f"[yellow]Warning: Failed to generate HTML report: {str(e)}[/yellow]")
@@ -527,6 +625,10 @@ def evaluate(
         except Exception as e:
             console.print(f"[bold red]Error parsing budget configuration: {str(e)}[/bold red]")
             raise typer.Exit(code=1)
+
+    if runtime.fail_on_critical and any(issue.severity == config.SEVERITY_CRITICAL for result in results for issue in result.issues):
+        console.print("[bold red]Critical findings detected and --fail-on-critical is enabled.[/bold red]")
+        raise typer.Exit(code=1)
  
 if __name__ == "__main__":
     app()
