@@ -4,7 +4,7 @@ including heading hierarchies, image alt quality, ARIA attributes, and labeled f
 """
 
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 from modules.html_parser import HtmlParser
 import config
 from modules.base import BaseEvaluator, EvaluationResult, Issue
@@ -40,7 +40,7 @@ class AccessibilityEvaluator(BaseEvaluator):
                 ))
                 img_scores.append(2.0)
             else:
-                alt_text = img.get("alt", "").strip()
+                alt_text = (img.get("alt") or "").strip()
                 # Empty alt is valid for decorative images
                 if not alt_text:
                     img_scores.append(10.0)
