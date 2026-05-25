@@ -25,6 +25,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt --extra-index-url https://pypi.org/simple
 
+    - name: Validate Dependency Resolution
+      run: |
+        python -m pip install pip-tools
+        python scripts/validate_dependencies.py
+
     - name: Verify Bill of Materials (BOM) Consistency
       run: |
         python utils/update_bom.py

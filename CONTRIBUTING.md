@@ -36,3 +36,12 @@ pytest -v
 2. Verify that unit tests successfully pass with a minimum **90% branch coverage** target.
 3. Squash commits into structured, human-readable logical groups.
 4. Open a Pull Request targetting the `main`/`master` branch, describing changes and link to related issues clearly.
+
+## Dependency Validation
+
+We validate pinned dependencies against live package indices before merge.
+
+```bash
+pre-commit install
+pre-commit run dependency-validation --all-files
+```
