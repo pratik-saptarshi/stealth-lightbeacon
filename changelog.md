@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.2
+
+### Release and Documentation
+
+- Published the `v1.2.2` release train and aligned the runtime identity string so client headers stay in sync with the tagged version.
+- Refreshed the main docs surface (`README`, `CLI-readme`, `docs/architecture`, `chagelog`, and `archotecture`) to keep the release story consistent for humans and automation.
+- Kept the changelog family current so the canonical history and typo-alias entry points point at the same release notes.
+
+### Validation and Sanity
+
+- Ran the repository test suite and coverage checks before publish so the release path stays validation-first.
+- Performed a latest-commit security sanity pass and found no obvious secret material in the current release diff.
+
 ## v1.2.1
 
 ### Reliability and Orchestration

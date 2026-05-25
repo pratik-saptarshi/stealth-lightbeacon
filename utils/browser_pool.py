@@ -12,6 +12,7 @@ try:
     from playwright.async_api import async_playwright, Browser
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
+    async_playwright = None
     PLAYWRIGHT_AVAILABLE = False
     Browser = None
 

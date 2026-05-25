@@ -3,7 +3,7 @@ test_browser_pool.py — Unit tests for the BrowserPool singleton.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from utils.browser_pool import BrowserPool
 
 
@@ -29,13 +29,15 @@ async def test_browser_pool_lifecycle():
     mock_playwright = AsyncMock()
     mock_playwright.chromium.launch.return_value = mock_browser
     
-    with patch("utils.browser_pool.async_playwright") as mock_ap, \
+    with patch("utils.browser_pool.PLAYWRIGHT_AVAILABLE", True), \
+         patch("utils.browser_pool.async_playwright") as mock_ap, \
          patch("modules.renderer.SSRFLocalProxy") as mock_proxy:
         
         mock_manager = AsyncMock()
         mock_manager.start = AsyncMock(return_value=mock_playwright)
         mock_ap.return_value = mock_manager
         mock_proxy_instance = AsyncMock()
+        mock_proxy_instance.get_proxy_url = Mock(return_value="http://127.0.0.1:8080")
         mock_proxy.return_value = mock_proxy_instance
         
         # Invoke get_browser

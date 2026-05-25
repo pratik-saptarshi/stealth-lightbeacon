@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Branch Coverage](https://img.shields.io/badge/coverage-%E2%89%A564%25-brightgreen.svg)](pyproject.toml)
 
-An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories. It also exposes agent-friendly report formats and CI contracts for orchestration workflows.
+An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories. It also exposes agent-friendly report formats and CI contracts for orchestration workflows. This release train is aligned to `v1.2.2`.
 
 ---
 
@@ -13,8 +13,8 @@ An enterprise-grade, high-performance asynchronous diagnostic audit tool and cra
 
 - [CLI Reference](CLI-readme.md)
 - [Architecture Guide](docs/architecture.md)
-- [Changelog](changelog.md)
-- [Chagelog](chagelog.md)
+- [Changelog](changelog.md) — current release `v1.2.2`
+- [Chagelog](chagelog.md) — alias entry for the same release history
 - [Contributing Guide](CONTRIBUTING.md)
 
 ---
