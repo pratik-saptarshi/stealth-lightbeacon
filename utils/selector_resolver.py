@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 
 @dataclass(frozen=True)
 class ResolvedSelector:
-    node: Any
     selector: str
     confidence: float
     repaired: bool
@@ -95,7 +94,7 @@ class SelectorResolver:
 
         exact = self._exact_find(parser, name, attrs, kwargs)
         if exact is not None:
-            resolved = ResolvedSelector(node=exact, selector=self._selector_for_node(exact), confidence=1.0, repaired=False)
+            resolved = ResolvedSelector(selector=self._selector_for_node(exact), confidence=1.0, repaired=False)
             self.cache[key] = resolved
             return resolved
 
@@ -109,15 +108,10 @@ class SelectorResolver:
                 best_node = candidate
 
         if best_node is None or best_score < self.min_confidence:
-            resolved = ResolvedSelector(node=None, selector=str(name or "*"), confidence=best_score, repaired=False)
+            resolved = ResolvedSelector(selector=str(name or "*"), confidence=best_score, repaired=False)
             self.cache[key] = resolved
             return resolved
 
-        resolved = ResolvedSelector(
-            node=best_node,
-            selector=self._selector_for_node(best_node),
-            confidence=best_score,
-            repaired=True,
-        )
+        resolved = ResolvedSelector(selector=self._selector_for_node(best_node), confidence=best_score, repaired=True)
         self.cache[key] = resolved
         return resolved

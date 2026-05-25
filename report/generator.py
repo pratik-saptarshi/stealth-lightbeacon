@@ -413,7 +413,7 @@ class ReportGenerator:
         <div style="font-size: 0.9rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
           <div><strong>Target Page:</strong> {{ target_url }}</div>
           <div><strong>Total Gaps Flagged:</strong> {{ total_issues }}</div>
-          <div><strong>Audit Engine Version:</strong> v1.1.9</div>
+<div><strong>Audit Engine Version:</strong> v1.2.0</div>
         </div>
       </div>
     </div>

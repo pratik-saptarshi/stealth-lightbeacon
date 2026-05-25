@@ -1,12 +1,9 @@
-"""
-formats.py - Shared normalized audit payload and renderers.
-"""
+"""Shared normalized audit payload and renderers."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, Mapping
 from xml.etree import ElementTree as ET
 
 from modules.base import EvaluationResult, Issue
@@ -31,6 +28,65 @@ def _domain_to_dict(result: EvaluationResult) -> Dict[str, Any]:
     }
 
 
+def _coerce_metadata(metadata: Any) -> Dict[str, Any]:
+    if isinstance(metadata, Mapping):
+        return dict(metadata)
+    return {}
+
+
+def _normalize_issue(issue: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": str(issue.get("id", "")),
+        "severity": str(issue.get("severity", "")),
+        "message": str(issue.get("message", "")),
+        "location": str(issue.get("location", "")),
+        "remedy": str(issue.get("remedy", "")),
+    }
+
+
+def _normalize_domain(domain: Mapping[str, Any]) -> Dict[str, Any]:
+    issues = [
+        _normalize_issue(issue)
+        for issue in domain.get("issues", [])
+        if isinstance(issue, Mapping)
+    ]
+    score = float(domain.get("score", 0.0) or 0.0)
+    return {
+        "name": str(domain.get("name") or domain.get("domain") or ""),
+        "score": score,
+        "issues": issues,
+        "metadata": _coerce_metadata(domain.get("metadata", {})),
+    }
+
+
+def normalize_report_payload(report: Mapping[str, Any]) -> Dict[str, Any]:
+    domains = [
+        _normalize_domain(domain)
+        for domain in report.get("domains", [])
+        if isinstance(domain, Mapping)
+    ]
+    average_score = report.get("average_score")
+    if average_score is None:
+        average_score = report.get("averageScore")
+    if average_score is None:
+        average_score = (
+            sum(domain["score"] for domain in domains) / len(domains)
+            if domains
+            else 0.0
+        )
+    total_issues = report.get("total_issues")
+    if total_issues is None:
+        total_issues = report.get("totalIssues")
+    if total_issues is None:
+        total_issues = sum(len(domain["issues"]) for domain in domains)
+    return {
+        "target_url": str(report.get("target_url") or report.get("targetUrl") or ""),
+        "average_score": float(average_score or 0.0),
+        "total_issues": int(total_issues or 0),
+        "domains": domains,
+    }
+
+
 def build_report_payload(target_url: str, results: Iterable[EvaluationResult]) -> Dict[str, Any]:
     results = list(results)
     payload = {
@@ -39,7 +95,7 @@ def build_report_payload(target_url: str, results: Iterable[EvaluationResult]) -
         "total_issues": sum(len(r.issues) for r in results),
         "domains": [_domain_to_dict(result) for result in results],
     }
-    return payload
+    return normalize_report_payload(payload)
 
 
 def _render_markdown(payload: Dict[str, Any]) -> str:
@@ -98,6 +154,7 @@ def _render_geo_xml(payload: Dict[str, Any]) -> str:
 
 
 def render_report_format(report_format: str, payload: Dict[str, Any]) -> str:
+    payload = normalize_report_payload(payload)
     normalized = report_format.lower().strip()
     if normalized == "json":
         return json.dumps(payload, indent=2)
@@ -106,4 +163,3 @@ def render_report_format(report_format: str, payload: Dict[str, Any]) -> str:
     if normalized == "geo-xml":
         return _render_geo_xml(payload)
     raise ValueError(f"Unsupported report format: {report_format}")
-

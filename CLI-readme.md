@@ -55,8 +55,17 @@ The CLI also reads these environment variables for CI workflows:
 - `SLB_AUTH_TOKEN`: bearer token for authenticated CI runs.
 - `SLB_AUDITS`: comma-separated evaluator subset used by CI recipes.
 - `SLB_FAIL_ON_CRITICAL`: fail the job when any critical finding is present.
+- `SLB_MCP_COMMAND`: pinned MCP executable or package command for `--engine mcp`.
+- `SLB_MCP_ARGS`: additional args for the pinned MCP command.
+- `SLB_MCP_HANDSHAKE_TIMEOUT`: timeout in seconds for the MCP handshake.
+- `SLB_MCP_TOOL_TIMEOUT`: timeout in seconds for MCP tool calls and I/O drains.
+- `SLB_MCP_SHUTDOWN_TIMEOUT`: timeout in seconds for MCP process shutdown.
 
 Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they rely on those variables as the CI contract.
+
+`--engine mcp` now requires a pinned executable or versioned package. The
+mutable `npx -y @modelcontextprotocol/server-playwright` download path is
+disabled by default.
 
 ## Output
 

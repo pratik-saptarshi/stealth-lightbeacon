@@ -25,7 +25,6 @@ from utils.selector_resolver import SelectorResolver
 # --- Global Backend Configuration ---
 # By default, use selectolax if available, else fallback to bs4.
 BACKEND = "selectolax" if SELECTOLAX_AVAILABLE else "bs4"
-_SELECTOR_RESOLVER = SelectorResolver()
 
 def force_backend(name: str):
     """
@@ -417,13 +416,16 @@ class HtmlParser:
             self._parser = SelectolaxParserWrapper(html)
         else:
             self._parser = BS4ParserWrapper(html)
+        self._selector_resolver = SelectorResolver()
 
     def find(self, name=None, attrs=None, **kwargs) -> Optional[HtmlNode]:
         p = self._parser.find(name, attrs, **kwargs)
         if p:
             return HtmlNode(p)
-        resolved = _SELECTOR_RESOLVER.resolve(self, name, attrs, **kwargs)
-        return HtmlNode(resolved.node) if resolved.node else None
+        resolved = self._selector_resolver.resolve(self, name, attrs, **kwargs)
+        selector_name, selector_attrs = self._selector_resolver._split_selector(resolved.selector, None)
+        repaired = self._parser.find(selector_name, selector_attrs, **kwargs)
+        return HtmlNode(repaired) if repaired else None
 
     def find_all(self, name=None, attrs=None, **kwargs) -> List[HtmlNode]:
         res = self._parser.find_all(name, attrs, **kwargs)

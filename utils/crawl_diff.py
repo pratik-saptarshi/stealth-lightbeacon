@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, List
+
+from report.formats import normalize_report_payload
 
 
 def _domain_name(domain: Dict[str, Any]) -> str:
@@ -15,6 +17,8 @@ def _issue_ids(domain: Dict[str, Any]) -> set[str]:
 
 
 def compare_audit_reports(previous: Dict[str, Any], current: Dict[str, Any]) -> Dict[str, Any]:
+    previous = normalize_report_payload(previous)
+    current = normalize_report_payload(current)
     previous_domains = { _domain_name(domain): domain for domain in previous.get("domains", []) }
     current_domains = { _domain_name(domain): domain for domain in current.get("domains", []) }
     all_domain_names = sorted(set(previous_domains) | set(current_domains))

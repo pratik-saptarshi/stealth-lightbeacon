@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timezone
 from utils.vector import make_vector
 from utils.crawl_diff import compare_audit_reports
+from report.formats import normalize_report_payload
 
 # Try lazy loading duckdb
 DUCKDB_AVAILABLE = False
@@ -171,6 +172,8 @@ class OntologyStore:
         
         # Enforce single-writer locks for DuckDB
         self.db_lock = asyncio.Lock()
+        self._vector_buffer = []
+        self._vector_flush_threshold = 25
         
         # Initialize DuckDB or Mock
         if DUCKDB_AVAILABLE:
@@ -192,6 +195,25 @@ class OntologyStore:
                 self.vector_store = FallbackVectorStore()
         else:
             self.vector_store = FallbackVectorStore()
+
+    async def _queue_vector_row(self, row: dict, force: bool = False):
+        self._vector_buffer.append(row)
+        if force or len(self._vector_buffer) >= self._vector_flush_threshold:
+            await self._flush_vector_buffer()
+
+    async def _flush_vector_buffer(self):
+        if not self._vector_buffer:
+            return
+        rows = self._vector_buffer
+        self._vector_buffer = []
+        try:
+            self.vector_store.insert(rows)
+        except Exception:
+            for row in rows:
+                try:
+                    self.vector_store.insert([row])
+                except Exception:
+                    pass
 
     def _initialize_duckdb_schema(self):
         self.duck_conn.execute("""
@@ -283,7 +305,7 @@ class OntologyStore:
             "url": page_url,
             "vector": vector
         }
-        self.vector_store.insert([vector_row])
+        await self._queue_vector_row(vector_row)
 
     async def record_finding(self, run_id: str, page_url: str, domain_id: str, issue_id: str, severity: str, message: str, location: str = "", remedy: str = "", metadata: dict = None):
         if metadata is None:
@@ -309,29 +331,30 @@ class OntologyStore:
             "url": page_url,
             "vector": vector
         }
-        self.vector_store.insert([vector_row])
+        await self._queue_vector_row(vector_row)
 
     async def finish_run(self, run_id: str, report_dict: dict, page_count: int, domain_count: int):
+        report_payload = normalize_report_payload(report_dict)
         completed_at = datetime.now(timezone.utc).isoformat()
         
         async with self.db_lock:
             self.duck_conn.execute(
                 "UPDATE audit_runs SET completed_at = ?, page_count = ?, domain_count = ?, report_json = ? WHERE run_id = ?",
-                [completed_at, page_count, domain_count, json.dumps(report_dict), run_id]
+                [completed_at, page_count, domain_count, json.dumps(report_payload), run_id]
             )
-            
-        summary_text = f"Audit run finished for {report_dict.get('targetUrl', 'unknown')}. Pages: {page_count}. Domains: {domain_count}."
+        await self._flush_vector_buffer()
+        summary_text = f"Audit run finished for {report_payload.get('target_url', 'unknown')}. Pages: {page_count}. Domains: {domain_count}."
         vector = make_vector(summary_text, self.vector_dimensions)
         
         vector_row = {
             "id": f"run:{run_id}",
             "kind": "run",
-            "label": report_dict.get('targetUrl', 'unknown'),
-            "metadata": json.dumps(report_dict),
+            "label": report_payload.get('target_url', 'unknown'),
+            "metadata": json.dumps(report_payload),
             "runId": run_id,
             "score": 10.0,
             "text": summary_text,
-            "url": report_dict.get('targetUrl', 'unknown'),
+            "url": report_payload.get('target_url', 'unknown'),
             "vector": vector
         }
         self.vector_store.insert([vector_row])
@@ -341,7 +364,8 @@ class OntologyStore:
         if not row or row[0] is None:
             raise ValueError(f"Missing audit run: {run_id}")
         raw = row[0]
-        return json.loads(raw) if isinstance(raw, str) else raw
+        report = json.loads(raw) if isinstance(raw, str) else raw
+        return normalize_report_payload(report)
 
     async def diff_runs(self, previous_run_id: str, current_run_id: str) -> dict:
         previous = await self.get_run_report(previous_run_id)

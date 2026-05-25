@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 import pytest
 
 from modules.base import EvaluationResult, Issue
-from report.formats import build_report_payload, render_report_format
+from report.formats import build_report_payload, normalize_report_payload, render_report_format
 
 
 def _sample_results():
@@ -57,6 +57,41 @@ def test_geo_xml_rendering_is_well_formed():
     assert root.findtext("targetUrl") == "https://example.com"
     assert root.find("domains/domain") is not None
     assert root.find("domains/domain/name").text == "Technical SEO"
+
+
+def test_legacy_payload_shapes_are_normalized():
+    legacy_payload = {
+        "targetUrl": "https://example.com",
+        "averageScore": 7.5,
+        "totalIssues": 1,
+        "domains": [
+            {
+                "domain": "Technical SEO",
+                "score": 7.5,
+                "issues": [
+                    {
+                        "id": "R-SEO-TITLE-LEN",
+                        "severity": "warning",
+                        "message": "Title is too long.",
+                        "location": "<title>",
+                        "remedy": "Shorten the title.",
+                    }
+                ],
+                "metadata": {"source": "legacy"},
+            }
+        ],
+    }
+
+    normalized = normalize_report_payload(legacy_payload)
+
+    assert normalized["target_url"] == "https://example.com"
+    assert normalized["domains"][0]["name"] == "Technical SEO"
+    assert normalized["domains"][0]["metadata"] == {"source": "legacy"}
+
+    rendered = render_report_format("json", legacy_payload)
+    parsed = json.loads(rendered)
+    assert parsed["target_url"] == "https://example.com"
+    assert parsed["domains"][0]["name"] == "Technical SEO"
 
 
 def test_unknown_report_format_is_rejected():
