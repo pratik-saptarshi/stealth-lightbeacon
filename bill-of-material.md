@@ -29,7 +29,7 @@ This document lists the core technologies, dependencies, standards compliance pr
 The following dependencies are automatically parsed and verified against [requirements.txt](requirements.txt):
 
 <!-- LIBRARIES_START -->
-* **requests** (`==2.32.4`): Fallback synchronous HTTP client.
+* **requests** (`==2.33.0`): Fallback synchronous HTTP client.
 * **beautifulsoup4** (`==4.14.3`): Fallback static HTML parser.
 * **lxml** (`==6.1.1`): Fast XML and HTML parsing backend.
 * **Jinja2** (`==3.1.6`): Autoescaped layout templating engine.
