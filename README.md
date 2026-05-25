@@ -52,8 +52,9 @@ Operational controls extend the main crawl/evaluate loop:
 
 - `--recon` runs advisory anti-bot reconnaissance before the audit.
 - `--recon-auto` applies the recon-recommended scraping posture automatically.
-- Selector repair in `utils/selector_resolver.py` recovers from minor layout shifts during parsing.
-- `utils/crawl_diff.py` compares saved reports and runs to surface regressions and improvements.
+- Selector repair in `utils/selector_resolver.py` is scoped per parser instance and recovers from minor layout shifts during parsing without leaking nodes across documents.
+- `utils/crawl_diff.py` compares canonical saved reports and runs to surface regressions and improvements.
+- `utils/ontology.py` buffers semantic-store writes during the crawl and flushes them in batches to keep the hot path lighter.
 - `utils/agent_card.py` publishes a stable manifest for orchestration consumers.
 
 ---
@@ -66,6 +67,8 @@ To execute security and compliance playbooks against sophisticated web propertie
 2. **Obscura Engine (Fast-Path):** Executes an external compiled static Rust binary (`bin/obscura`) via non-blocking subprocesses, falling back to customized browser TLS fingerprints and HTTP/2 profiles if the binary is absent.
 3. **Zendriver Engine (Heavy-Path):** Headless, anti-detect Chrome process. Overrides automation headers, emulates authentic plugin configurations, spoofs GPU/Canvas WebGL renderers, and mimics human mouse actions to bypass zero-day bot detection rules.
 4. **Stealth Browser MCP:** Protocol client layer wrapping scraping payloads into standardized Model Context Protocol tool requests (e.g. Playwright stdio integrations) for autonomous agents.
+   - Requires an explicitly pinned executable or versioned package via `SLB_MCP_COMMAND` / `SLB_MCP_ARGS`.
+   - The mutable runtime-download default is disabled so audit behavior stays deterministic.
 
 ---
 
@@ -109,10 +112,16 @@ If you prefer to install dependencies directly on the host machine:
    playwright install chromium
    ```
 5. **Setup environment variables:**
-   ```bash
-   cp .env.example .env
-   # Add your Google PageSpeed Insights API Key to .env
-   ```
+    ```bash
+    cp .env.example .env
+    # Add your Google PageSpeed Insights API Key to .env
+    ```
+   Optional MCP pinning variables:
+   - `SLB_MCP_COMMAND`
+   - `SLB_MCP_ARGS`
+   - `SLB_MCP_HANDSHAKE_TIMEOUT`
+   - `SLB_MCP_TOOL_TIMEOUT`
+   - `SLB_MCP_SHUTDOWN_TIMEOUT`
 
 ---
 
@@ -174,6 +183,11 @@ The CLI also accepts environment-backed inputs for CI pipelines:
 - `SLB_AUTH_TOKEN`: bearer token passed through to authenticated CI runs.
 - `SLB_AUDITS`: comma-separated evaluator subset used by CI recipes.
 - `SLB_FAIL_ON_CRITICAL`: fail the job when any critical finding is detected.
+- `SLB_MCP_COMMAND`: pinned MCP executable or package command for `--engine mcp`.
+- `SLB_MCP_ARGS`: additional args for the pinned MCP command.
+- `SLB_MCP_HANDSHAKE_TIMEOUT`: timeout in seconds for the MCP handshake.
+- `SLB_MCP_TOOL_TIMEOUT`: timeout in seconds for MCP tool calls and I/O drains.
+- `SLB_MCP_SHUTDOWN_TIMEOUT`: timeout in seconds for MCP process shutdown.
 
 Checked-in recipe templates live under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they treat those variables as the CI contract.
 

@@ -275,27 +275,8 @@ async def run_evaluation(
             ))
             
         if store and run_id:
-            report_dict = {
-                "targetUrl": url,
-                "average_score": sum(r.score for r in consolidated_results) / len(consolidated_results) if consolidated_results else 0.0,
-                "total_issues": sum(len(r.issues) for r in consolidated_results),
-                "domains": [
-                    {
-                        "domain": r.domain,
-                        "score": r.score,
-                        "issues": [
-                            {
-                                "id": issue.id,
-                                "severity": issue.severity,
-                                "message": issue.message,
-                                "location": issue.location,
-                                "remedy": issue.remedy
-                            } for issue in r.issues
-                        ]
-                    } for r in consolidated_results
-                ]
-            }
-            await store.finish_run(run_id, report_dict, len(crawled_pages), len(consolidated_results))
+            report_payload = build_report_payload(url, consolidated_results)
+            await store.finish_run(run_id, report_payload, len(crawled_pages), len(consolidated_results))
     finally:
         close_result = client.aclose()
         if inspect.isawaitable(close_result):

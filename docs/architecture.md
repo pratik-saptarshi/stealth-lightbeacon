@@ -90,7 +90,7 @@ Auditing sophisticated properties requires evading standard anti-bot triggers. T
 - **HttpEngine (Standard):** High-speed, low-footprint direct HTTP client using customized modern browser headers and HTTP/2 transport profiles.
 - **ObscuraEngine (Fast-Path):** Spawns a compiled hermetic Rust static binary `./bin/obscura` via subprocesses to negotiate low-level TLS handshakes, spoofing standard client signatures.
 - **ZendriverEngine (Heavy-Path):** Automated anti-detect Chromium controller powered by Playwright. Intercepts webdriver parameters, emulates system fonts/plugins, overrides WebGL GPU descriptors, and simulates human mouse gestures to defeat zero-day bot challenges.
-- **StealthMcpLayer (Model Context Protocol):** Client wrapper encapsulating queries into standard MCP tool calls (Playwright integration stdio sessions) for autonomous agent orchestrators.
+- **StealthMcpLayer (Model Context Protocol):** Client wrapper encapsulating queries into standard MCP tool calls (Playwright integration stdio sessions) for autonomous agent orchestrators. It now requires an explicitly pinned executable or versioned package via `SLB_MCP_COMMAND` / `SLB_MCP_ARGS`; the mutable runtime-download default is disabled.
 
 ### 🔌 4. Decoupled Diagnostic Plugins (`modules/`)
 Evaluation domains are structured as independent diagnostic plugins executing concurrently:
@@ -108,7 +108,7 @@ Evaluation domains are structured as independent diagnostic plugins executing co
 1. **Typer CLI Command:** Parses parameters, instantiates active evaluators, and triggers the non-blocking event loop.
 2. **Consolidation Pipeline:** Collects results from concurrent evaluators, merges metadata maps, and aggregates diagnostic issue logs.
 3. **Budget Compliance Check:** Feeds metrics into the `BudgetValidator` helper. If any Core Web Vitals or scores breach specified budget boundaries, throws exit code `2` to break build loops.
-4. **Autoescaped Jinja2 Output:** Exports diagnostic tables into JSON and renders a responsive HTML dashboard securely, autoescaping page content to eliminate Stored XSS threats. The shared payload also supports LLM Markdown and GEO XML renderers for orchestration workflows.
+4. **Autoescaped Jinja2 Output:** Exports diagnostic tables into JSON and renders a responsive HTML dashboard securely, autoescaping page content to eliminate Stored XSS threats. The shared payload is canonical across rendering, persistence, and diffing, and it also supports LLM Markdown and GEO XML renderers for orchestration workflows.
 
 ---
 
@@ -137,8 +137,9 @@ The CLI also exposes `--out`, `--http2`, and `--allow-private` for report routin
 The supporting utility layer keeps the orchestration surface stable:
 
 - `utils/recon.py` performs advisory reconnaissance and selects a scraping posture.
-- `utils/selector_resolver.py` and `modules/html_parser.py` repair selectors when small layout shifts break exact matches.
-- `utils/crawl_diff.py` and `utils/ontology.py` compare audit payloads and persisted runs to highlight regressions and improvements.
+- `utils/selector_resolver.py` and `modules/html_parser.py` repair selectors when small layout shifts break exact matches, scoped per parser instance so repaired DOM state never leaks between documents.
+- `utils/crawl_diff.py` and `utils/ontology.py` compare canonical audit payloads and persisted runs to highlight regressions and improvements.
+- `utils/ontology.py` buffers vector writes during the crawl and flushes them in batches to reduce hot-path persistence cost.
 - `utils/agent_card.py` defines the stable agent-card manifest used by orchestration consumers.
 
 ---

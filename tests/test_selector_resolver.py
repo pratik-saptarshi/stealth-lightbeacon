@@ -18,11 +18,15 @@ def test_selector_resolver_repairs_small_layout_shift():
 
     resolved = resolver.resolve(parser, "h1#main-title", text_hint="Hero Title")
 
-    assert resolved.node is not None
-    assert resolved.node.name == "h1"
-    assert resolved.node.get_text().strip() == "Hero Title"
+    selector_name, selector_attrs = resolver._split_selector(resolved.selector, None)
+    reparsed = parser.find(selector_name, attrs=selector_attrs)
+
+    assert resolved.selector == "h1.page-title"
     assert resolved.confidence >= resolver.min_confidence
     assert resolved.repaired is True
+    assert reparsed is not None
+    assert reparsed.name == "h1"
+    assert reparsed.get_text().strip() == "Hero Title"
 
 
 def test_html_parser_uses_selector_repair_for_exact_miss():

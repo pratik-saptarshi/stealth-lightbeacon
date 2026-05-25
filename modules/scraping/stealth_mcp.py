@@ -6,7 +6,7 @@ Communicates with standard Model Context Protocol servers to execute visual play
 import logging
 import json
 import asyncio
-from typing import Optional
+from typing import Optional, Any
 from modules.scraping.base import ScrapingEngine
 from utils.ssrf_guard import SSRFGuard
 
@@ -18,14 +18,61 @@ class StealthMcpLayer(ScrapingEngine):
     """
     def __init__(
         self,
-        mcp_command: str = "npx",
+        mcp_command: Optional[str] = None,
         mcp_args: Optional[list] = None,
+        handshake_timeout: float = 10.0,
+        tool_timeout: float = 30.0,
+        shutdown_timeout: float = 5.0,
         allow_private: bool = False
     ):
-        self.mcp_command = mcp_command
+        self.mcp_command = mcp_command or "npx"
         self.mcp_args = mcp_args or ["-y", "@modelcontextprotocol/server-playwright"]
+        self.handshake_timeout = handshake_timeout
+        self.tool_timeout = tool_timeout
+        self.shutdown_timeout = shutdown_timeout
         self.allow_private = allow_private
         self.ssrf_guard = SSRFGuard(allow_private=allow_private)
+        self._validate_command_config()
+
+    def _validate_command_config(self) -> None:
+        joined = " ".join([self.mcp_command, *self.mcp_args]).strip()
+        if self.mcp_command == "npx" and self.mcp_args == ["-y", "@modelcontextprotocol/server-playwright"]:
+            raise ValueError(
+                "MCP mode requires an explicit pinned executable or versioned package; "
+                "set SLB_MCP_COMMAND/SLB_MCP_ARGS instead of using the mutable runtime download default."
+            )
+        if self.mcp_command == "npx" and "@modelcontextprotocol/server-playwright@" not in joined and not any(
+            arg.startswith(".") or arg.startswith("/") for arg in self.mcp_args
+        ):
+            raise ValueError(
+                "MCP mode must use a pinned package version or a local executable path."
+            )
+
+    async def _drain(self, stream: Any) -> None:
+        await asyncio.wait_for(stream.drain(), timeout=self.tool_timeout)
+
+    async def _read_json(self, stream: Any, timeout: float, stage: str) -> dict:
+        raw = await asyncio.wait_for(stream.readline(), timeout=timeout)
+        if not raw:
+            raise TimeoutError(f"{stage} timed out while waiting for MCP output")
+        return json.loads(raw.decode())
+
+    async def _terminate(self, process: Any) -> None:
+        try:
+            process.terminate()
+        except Exception:
+            pass
+        try:
+            await asyncio.wait_for(process.wait(), timeout=self.shutdown_timeout)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+            try:
+                await asyncio.wait_for(process.wait(), timeout=self.shutdown_timeout)
+            except Exception:
+                pass
 
     async def scrape(self, url: str) -> str:
         """
@@ -63,11 +110,10 @@ class StealthMcpLayer(ScrapingEngine):
             
             # Send initialization handshake
             process.stdin.write((json.dumps(init_message) + "\n").encode())
-            await process.stdin.drain()
+            await self._drain(process.stdin)
             
             # Read server handshake response
-            stdout_line = await process.stdout.readline()
-            handshake_resp = json.loads(stdout_line.decode())
+            handshake_resp = await self._read_json(process.stdout, self.handshake_timeout, "MCP handshake")
             logger.debug(f"MCP Server Handshake Received: {handshake_resp}")
             
             # Formulate playbooks execution call
@@ -85,11 +131,10 @@ class StealthMcpLayer(ScrapingEngine):
             }
             
             process.stdin.write((json.dumps(mcp_call) + "\n").encode())
-            await process.stdin.drain()
+            await self._drain(process.stdin)
             
             # Read navigation response
-            stdout_line = await process.stdout.readline()
-            navigate_resp = json.loads(stdout_line.decode())
+            navigate_resp = await self._read_json(process.stdout, self.tool_timeout, "MCP navigation")
             logger.debug(f"MCP Navigation Completed: {navigate_resp}")
             
             # Fetch DOM content using standard page content call
@@ -106,10 +151,9 @@ class StealthMcpLayer(ScrapingEngine):
             }
             
             process.stdin.write((json.dumps(content_call) + "\n").encode())
-            await process.stdin.drain()
+            await self._drain(process.stdin)
             
-            stdout_line = await process.stdout.readline()
-            content_resp = json.loads(stdout_line.decode())
+            content_resp = await self._read_json(process.stdout, self.tool_timeout, "MCP content")
             
             # Extract content string
             try:
@@ -126,18 +170,14 @@ class StealthMcpLayer(ScrapingEngine):
                     }
                 }
                 process.stdin.write((json.dumps(close_call) + "\n").encode())
-                await process.stdin.drain()
+                await self._drain(process.stdin)
                 
                 return html_content
             except Exception as e:
                 raise ValueError(f"Unexpected response structure from Playwright MCP server: {content_resp}") from e
                 
             finally:
-                try:
-                    process.terminate()
-                    await process.wait()
-                except Exception:
-                    pass
+                await self._terminate(process)
         except Exception as e:
             logger.error(f"Stealth Browser MCP Protocol Execution failed: {str(e)}")
             # Graceful fallback to standard browser-spoofing http client

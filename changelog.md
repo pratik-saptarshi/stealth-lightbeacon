@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.2.0
+
+### Documentation
+
+- Documented the canonical audit payload contract and the current phase-driven architecture roadmap.
+- Updated the README and CLI reference with MCP pinning variables and the buffered persistence note.
+- Refreshed the architecture guide to describe document-scoped selector repair and canonical report persistence.
+
+### Runtime and Contracts
+
+- Normalized report, persistence, and diffing paths onto one canonical payload shape.
+- Scoped selector repair caches to each parser instance so repaired DOM state cannot leak across documents.
+- Added bounded MCP handshake, tool, and shutdown timeouts plus a fail-fast requirement for pinned commands.
+- Buffered semantic-store writes so crawl persistence no longer pays the full vector-write cost on every page.
+
 ## v1.1.9
 
 ### Documentation

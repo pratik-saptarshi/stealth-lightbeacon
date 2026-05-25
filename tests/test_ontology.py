@@ -50,6 +50,8 @@ async def test_ontology_store_flow():
         # 4. Finish the run
         report = {"targetUrl": "https://example.com", "brokenPages": {}}
         await store.finish_run(run_id, report, page_count=1, domain_count=1)
+        persisted_report = await store.get_run_report(run_id)
+        assert persisted_report["target_url"] == "https://example.com"
         
         # 5. Check DuckDB values
         runs = store.duck_conn.execute("SELECT count(*) FROM audit_runs").fetchone()[0]

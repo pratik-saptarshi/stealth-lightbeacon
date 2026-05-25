@@ -207,6 +207,37 @@ def test_node_decompose():
     assert len(parser.find_all("script")) == 0
     assert "console.log" not in parser.get_text()
 
+
+def test_selector_repair_is_scoped_to_each_document():
+    """
+    Verifies repaired selector state does not leak across HtmlParser instances.
+    """
+    html_one = """
+    <html>
+      <body>
+        <button class="cta" data-role="primary">Alpha</button>
+      </body>
+    </html>
+    """
+    html_two = """
+    <html>
+      <body>
+        <button class="cta" data-role="secondary">Beta</button>
+      </body>
+    </html>
+    """
+    parser_one = HtmlParser(html_one)
+    parser_two = HtmlParser(html_two)
+    attrs = {"class": ["cta"], "data-role": "missing"}
+
+    first = parser_one.find("button", attrs=attrs)
+    second = parser_two.find("button", attrs=attrs)
+
+    assert first is not None
+    assert second is not None
+    assert first.text == "Alpha"
+    assert second.text == "Beta"
+
 def test_parser_benchmark(benchmark):
     """
     Benchmarks parsing and querying HTML using HtmlParser.

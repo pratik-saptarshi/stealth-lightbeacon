@@ -15,8 +15,8 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15       # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "StealthLightbeacon/1.1.9 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
-        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.1.9)"
+        "StealthLightbeacon/1.2.0 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.0)"
     )
 }
 
@@ -53,3 +53,9 @@ KEYWORD_STUFFING_DENSITY = 0.04   # 4% single-keyword density triggers a warning
 
 # ─── Report ───────────────────────────────────────────────────────────────────
 REPORT_OUTPUT_DIR = "reports"
+
+MCP_COMMAND = os.getenv("SLB_MCP_COMMAND", "").strip() or None
+MCP_ARGS = [arg.strip() for arg in os.getenv("SLB_MCP_ARGS", "").split() if arg.strip()]
+MCP_HANDSHAKE_TIMEOUT = float(os.getenv("SLB_MCP_HANDSHAKE_TIMEOUT", "10"))
+MCP_TOOL_TIMEOUT = float(os.getenv("SLB_MCP_TOOL_TIMEOUT", "30"))
+MCP_SHUTDOWN_TIMEOUT = float(os.getenv("SLB_MCP_SHUTDOWN_TIMEOUT", "5"))
