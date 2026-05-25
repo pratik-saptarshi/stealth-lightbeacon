@@ -29,21 +29,24 @@ This document lists the core technologies, dependencies, standards compliance pr
 The following dependencies are automatically parsed and verified against [requirements.txt](requirements.txt):
 
 <!-- LIBRARIES_START -->
-* **requests** (`>=2.31.0`): Fallback synchronous HTTP client.
-* **beautifulsoup4** (`>=4.12.3`): Fallback static HTML parser.
-* **lxml** (`>=5.2.0`): Fast XML and HTML parsing backend.
-* **Jinja2** (`>=3.1.4`): Autoescaped layout templating engine.
-* **colorama** (`>=0.4.6`): Terminal colors compatibility support.
-* **python-dotenv** (`>=1.0.0`): Environment variables loader.
-* **tldextract** (`>=5.1.2`): Accurate domain and subdomain parser.
-* **rich** (`>=13.7.0`): Rich formatting and console output tables.
-* **httpx** (`>=0.27.0`): Non-blocking asynchronous HTTP/2 client.
-* **typer** (`>=0.12.0`): High-fidelity command-line interface.
-* **pytest** (`>=8.2.0`): Core unit and integration testing engine.
-* **pytest-asyncio** (`>=0.23.0`): Asynchronous loop fixtures decorator.
-* **selectolax** (`>=0.3.21`): High-performance HTML parsing backend.
-* **pytest-benchmark** (`>=4.0.0`): Performance and benchmarking suite.
-* **rich-click** (`>=0.8.0`): Beautiful rich-click CLI help formatting.
+* **requests** (`==2.32.4`): Fallback synchronous HTTP client.
+* **beautifulsoup4** (`==4.14.3`): Fallback static HTML parser.
+* **lxml** (`==6.1.1`): Fast XML and HTML parsing backend.
+* **Jinja2** (`==3.1.6`): Autoescaped layout templating engine.
+* **colorama** (`==0.4.6`): Terminal colors compatibility support.
+* **python-dotenv** (`==1.0.1`): Environment variables loader.
+* **tldextract** (`==5.3.0`): Accurate domain and subdomain parser.
+* **rich** (`==15.0.0`): Rich formatting and console output tables.
+* **httpx** (`==0.28.1`): Non-blocking asynchronous HTTP/2 client.
+* **typer** (`==0.25.1`): High-fidelity command-line interface.
+* **pytest** (`==9.0.3`): Core unit and integration testing engine.
+* **pytest-cov** (`==5.0.0`): Dynamic software dependency.
+* **pytest-asyncio** (`==1.3.0`): Asynchronous loop fixtures decorator.
+* **selectolax** (`==0.4.9`): High-performance HTML parsing backend.
+* **pytest-benchmark** (`==5.2.3`): Performance and benchmarking suite.
+* **rich-click** (`==1.9.7`): Beautiful rich-click CLI help formatting.
+* **duckdb** (`>=1.0.0`): Dynamic software dependency.
+* **lancedb** (`>=0.12.0`): Dynamic software dependency.
 <!-- LIBRARIES_END -->
 
 ---
