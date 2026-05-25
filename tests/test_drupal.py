@@ -3,7 +3,7 @@ test_drupal.py — Unit tests for the DrupalEvaluator module.
 """
 
 import pytest
-import httpx
+from unittest.mock import AsyncMock, patch
 from modules.drupal import DrupalEvaluator
 from modules.base import EvaluationResult
 
@@ -31,7 +31,12 @@ async def test_drupal_evaluator_fingerprints(mock_html_drupal: str):
     Verifies that Drupal generators and core file paths are correctly identified.
     """
     evaluator = DrupalEvaluator()
-    result = await evaluator.evaluate(mock_html_drupal, "https://example.com")
+    with patch.object(DrupalEvaluator, "_fetch_headers", AsyncMock(return_value=None)):
+        result = await evaluator.evaluate(
+            mock_html_drupal,
+            "https://example.com",
+            check_api=False,
+        )
     
     assert isinstance(result, EvaluationResult)
     assert result.domain == "Drupal & Security Headers"

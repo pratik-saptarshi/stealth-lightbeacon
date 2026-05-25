@@ -3,7 +3,7 @@
 [![Python Support](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://github.com/pratik-saptarshi/stealth-lightbeacon)
 [![DevContainers Ready](https://img.shields.io/badge/devcontainers-ready-green.svg)](https://github.com/pratik-saptarshi/stealth-lightbeacon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Branch Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen.svg)](pyproject.toml)
+[![Branch Coverage](https://img.shields.io/badge/coverage-%E2%89%A564%25-brightgreen.svg)](pyproject.toml)
 
 An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories.
 
