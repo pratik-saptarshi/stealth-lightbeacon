@@ -22,3 +22,4 @@ integration_log.jsonl
 graphify-out/
 docs/reviews/
 .worktrees/
+.DS_Store

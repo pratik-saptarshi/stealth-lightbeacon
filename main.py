@@ -43,11 +43,14 @@ async def run_evaluation(
     http2: bool = False,
     scraping_engine: Optional[Any] = None,
     check_links: bool = False,
-    check_api: bool = False
+    check_api: bool = False,
+    store: Optional[Any] = None,
+    run_id: Optional[str] = None
 ) -> List[EvaluationResult]:
     """
     Asynchronously crawls the target URL (recursively if crawl_depth > 0)
     and runs all specified evaluation modules concurrently, consolidating the results.
+    Optional OntologyStore integration allows for DuckDB and LanceDB persistence.
     """
     from utils.ssrf_guard import SSRFGuard, SSRFViolationError
     from crawler import Crawler
@@ -107,6 +110,9 @@ async def run_evaluation(
         all_eval_results: Dict[str, List[EvaluationResult]] = {mod.domain: [] for mod in active_modules}
         
         for page_url, html_content in crawled_pages.items():
+            if store and run_id:
+                await store.record_page(run_id, page_url, html_content)
+                
             tasks = []
             for module in active_modules:
                 kwargs = {"allow_private": allow_private}
@@ -127,6 +133,17 @@ async def run_evaluation(
                     updated_issues = []
                     for issue in r.issues:
                         updated_issues.append(replace(issue, location=f"[{url_path}] {issue.location}"))
+                        if store and run_id:
+                            await store.record_finding(
+                                run_id=run_id,
+                                page_url=page_url,
+                                domain_id=mod.domain,
+                                issue_id=issue.id,
+                                severity=issue.severity,
+                                message=issue.message,
+                                location=issue.location,
+                                remedy=issue.remedy
+                            )
                     updated_r = replace(r, issues=tuple(updated_issues))
                     all_eval_results[mod.domain].append(updated_r)
 
@@ -171,6 +188,28 @@ async def run_evaluation(
                 issues=all_issues,
                 metadata=merged_metadata
             ))
+            
+        if store and run_id:
+            report_dict = {
+                "targetUrl": url,
+                "average_score": sum(r.score for r in consolidated_results) / len(consolidated_results) if consolidated_results else 0.0,
+                "domains": [
+                    {
+                        "domain": r.domain,
+                        "score": r.score,
+                        "issues": [
+                            {
+                                "id": issue.id,
+                                "severity": issue.severity,
+                                "message": issue.message,
+                                "location": issue.location,
+                                "remedy": issue.remedy
+                            } for issue in r.issues
+                        ]
+                    } for r in consolidated_results
+                ]
+            }
+            await store.finish_run(run_id, report_dict, len(crawled_pages), len(consolidated_results))
     finally:
         close_result = client.aclose()
         if inspect.isawaitable(close_result):
@@ -294,7 +333,7 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
 
 @app.command()
 def evaluate(
-    url: str = typer.Argument(..., help="The target URL of the Drupal site to scan."),
+    url: Optional[str] = typer.Argument(None, help="The target URL of the Drupal site to scan (optional if using --watch or --search-semantic)."),
     output_dir: Optional[str] = typer.Option(None, "--out", "-o", help="Custom output folder path for reports."),
     allow_private: bool = typer.Option(False, "--allow-private", help="Permit scans of private and loopback IP addresses (disables SSRF protection)."),
     crawl_depth: int = typer.Option(0, "--crawl-depth", "-d", help="Max recursion depth for crawl links discovery (0 resolves only the target URL)."),
@@ -305,11 +344,60 @@ def evaluate(
     engine: str = typer.Option("http", "--engine", help="Adversarial scraping engine strategy: 'http', 'fast', 'stealth', or 'mcp'."),
     budget: Optional[str] = typer.Option(None, "--budget", help="Path to a JSON configuration file defining performance budgets (e.g. LCP, CLS thresholds)."),
     check_links: bool = typer.Option(False, "--check-links", help="Enable Outbound Broken Link Checker scanning."),
-    check_api: bool = typer.Option(False, "--check-api", help="Enable default Drupal JSON:API and REST directories scanning.")
+    check_api: bool = typer.Option(False, "--check-api", help="Enable default Drupal JSON:API and REST directories scanning."),
+    persist: bool = typer.Option(False, "--persist", help="Enable DuckDB/LanceDB dual persistence storage."),
+    watch: bool = typer.Option(False, "--watch", help="Start the live WorkspaceWatcher on the current directory."),
+    search_semantic: Optional[str] = typer.Option(None, "--search-semantic", help="Perform a semantic vector search query on historical run data.")
 ):
     """
     Evaluates the target website on SEO, Performance (PageSpeed), Accessibility, and AEO/GEO metrics.
     """
+    if search_semantic:
+        from utils.ontology import OntologyStore
+        store = OntologyStore()
+        try:
+            results = store.search(search_semantic, limit=5)
+            console.print(f"\n[bold green]✔ Semantic Search Results for: '{search_semantic}'[/bold green]\n")
+            if not results:
+                console.print("[dim]No results found.[/dim]")
+            for idx, res in enumerate(results):
+                console.print(f"[bold cyan]{idx+1}. [{res['kind'].upper()}] {res['label']}[/bold cyan] (Score: {res['score']})")
+                console.print(f"  [dim]Text: {res['text']}[/dim]")
+                if res.get('url'):
+                    console.print(f"  [dim]URL: {res['url']}[/dim]")
+                console.print("")
+        finally:
+            store.close()
+        return
+
+    if watch:
+        import signal
+        import time
+        from utils.watcher import WorkspaceWatcher
+        watcher = WorkspaceWatcher(workspace_root=".")
+        watcher.start()
+        
+        def signal_handler(signum, frame):
+            console.print("\n[bold yellow]Gracefully shutting down WorkspaceWatcher...[/bold yellow]")
+            watcher.stop()
+            raise typer.Exit(code=0)
+            
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        console.print("[bold green]✔ WorkspaceWatcher is active. Press Ctrl+C to exit.[/bold green]")
+        while True:
+            try:
+                time.sleep(1)
+            except (KeyboardInterrupt, SystemExit):
+                watcher.stop()
+                break
+        return
+
+    if not url:
+        console.print("[bold red]Error: Missing argument 'URL'. Either specify a URL to evaluate, or run with --watch / --search-semantic.[/bold red]")
+        raise typer.Exit(code=1)
+
     try:
         from modules.seo import SeoEvaluator
         from modules.pagespeed import PagespeedEvaluator
@@ -349,25 +437,56 @@ def evaluate(
     # Resolve custom scraping engine if a specific strategy is selected
     scraping_engine = ScrapingFactory.get_engine(engine, allow_private=allow_private)
     
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True
-    ) as progress:
-        progress.add_task(description="Crawling and running evaluator algorithms...", total=None)
-        # Execute async loop
-        results = asyncio.run(run_evaluation(
-            url,
-            active_evaluators,
-            allow_private=allow_private,
-            crawl_depth=crawl_depth,
-            max_urls=max_urls,
-            render=render,
-            http2=http2,
-            scraping_engine=scraping_engine,
-            check_links=check_links,
-            check_api=check_api
+    store = None
+    run_id = None
+    if persist:
+        import uuid
+        from datetime import datetime
+        from utils.ontology import OntologyStore
+        store = OntologyStore()
+        run_id = f"run_{uuid.uuid4().hex[:12]}"
+        
+        # Call begin_run synchronously
+        asyncio.run(store.begin_run(
+            run_id=run_id,
+            target_url=url,
+            started_at=datetime.utcnow().isoformat(),
+            options={
+                "crawl_depth": crawl_depth,
+                "max_urls": max_urls,
+                "render": render,
+                "http2": http2,
+                "engine": engine,
+                "check_links": check_links,
+                "check_api": check_api
+            }
         ))
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            progress.add_task(description="Crawling and running evaluator algorithms...", total=None)
+            # Execute async loop
+            results = asyncio.run(run_evaluation(
+                url,
+                active_evaluators,
+                allow_private=allow_private,
+                crawl_depth=crawl_depth,
+                max_urls=max_urls,
+                render=render,
+                http2=http2,
+                scraping_engine=scraping_engine,
+                check_links=check_links,
+                check_api=check_api,
+                store=store,
+                run_id=run_id
+            ))
+    finally:
+        if store:
+            store.close()
         
     # Render Console Tables
     print_terminal_report(url, results)
