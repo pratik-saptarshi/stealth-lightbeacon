@@ -14,6 +14,7 @@ An enterprise-grade, high-performance asynchronous diagnostic audit tool and cra
 - [CLI Reference](CLI-readme.md)
 - [Architecture Guide](docs/architecture.md)
 - [Changelog](changelog.md)
+- [Chagelog](chagelog.md)
 - [Contributing Guide](CONTRIBUTING.md)
 
 ---
@@ -55,6 +56,7 @@ Operational controls extend the main crawl/evaluate loop:
 - Selector repair in `utils/selector_resolver.py` recovers from minor layout shifts during parsing.
 - `utils/crawl_diff.py` compares saved reports and runs to surface regressions and improvements.
 - `utils/agent_card.py` publishes a stable manifest for orchestration consumers.
+- Normalized report payloads (`target_url`, `average_score`, `total_issues`, `domains`) are now reused by all report renderers (`json`, `html`, `llm`, `geo-xml`).
 
 ---
 
@@ -165,6 +167,7 @@ python main.py evaluate "https://example.com" --recon --recon-auto
 | `--budget` | `None` | Path to JSON config specifying strict Core Web Vitals performance budgets. |
 | `--check-links` | `False` | Performs concurrent HTTP status validations on all outbound/same-domain links. |
 | `--check-api` | `False` | Asynchronously audits default Drupal REST & JSON:API directories for sensitive exposures. |
+| `--persist` | `False` | Persist audit runs, pages, and findings for historical lookup and diffing. |
 
 ### CI and Environment Variables
 
@@ -174,6 +177,9 @@ The CLI also accepts environment-backed inputs for CI pipelines:
 - `SLB_AUTH_TOKEN`: bearer token passed through to authenticated CI runs.
 - `SLB_AUDITS`: comma-separated evaluator subset used by CI recipes.
 - `SLB_FAIL_ON_CRITICAL`: fail the job when any critical finding is detected.
+- `SLB_MCP_COMMAND`: required executable path when using `--engine mcp`.
+- `SLB_MCP_ARGS`: optional whitespace-separated MCP argument list.
+- `SLB_MCP_HANDSHAKE_TIMEOUT`: optional MCP socket timeout for handshake/tool-call rounds.
 
 Checked-in recipe templates live under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they treat those variables as the CI contract.
 

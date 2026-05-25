@@ -312,6 +312,7 @@ class OntologyStore:
         self.vector_store.insert([vector_row])
 
     async def finish_run(self, run_id: str, report_dict: dict, page_count: int, domain_count: int):
+        normalized_target_url = report_dict.get("target_url") or report_dict.get("targetUrl", "unknown")
         completed_at = datetime.now(timezone.utc).isoformat()
         
         async with self.db_lock:
@@ -320,18 +321,18 @@ class OntologyStore:
                 [completed_at, page_count, domain_count, json.dumps(report_dict), run_id]
             )
             
-        summary_text = f"Audit run finished for {report_dict.get('targetUrl', 'unknown')}. Pages: {page_count}. Domains: {domain_count}."
+        summary_text = f"Audit run finished for {normalized_target_url}. Pages: {page_count}. Domains: {domain_count}."
         vector = make_vector(summary_text, self.vector_dimensions)
         
         vector_row = {
             "id": f"run:{run_id}",
             "kind": "run",
-            "label": report_dict.get('targetUrl', 'unknown'),
+            "label": normalized_target_url,
             "metadata": json.dumps(report_dict),
             "runId": run_id,
             "score": 10.0,
             "text": summary_text,
-            "url": report_dict.get('targetUrl', 'unknown'),
+            "url": normalized_target_url,
             "vector": vector
         }
         self.vector_store.insert([vector_row])

@@ -148,6 +148,7 @@ async def run_evaluation(
         raise typer.Exit(code=1)
         
     crawled_pages: Dict[str, str] = {}
+    persistence_tasks: List[asyncio.Task] = []
     crawler = None
     
     # 1. Resolve browser renderer/scraping engine strategy
@@ -156,10 +157,13 @@ async def run_evaluation(
         renderer = PlaywrightRenderer()
     
     # 2. Crawl Target Site
+    from utils.ssrf_guard import SSRFHTTPTransport
+    guard = SSRFGuard(allow_private=allow_private)
+    transport = SSRFHTTPTransport(guard=guard, http2=http2)
     client = httpx.AsyncClient(
+        transport=transport,
         timeout=config.REQUEST_TIMEOUT,
         headers=config.build_request_headers(auth_token),
-        http2=http2,
     )
     try:
         if crawl_depth > 0 or check_links:
@@ -196,7 +200,7 @@ async def run_evaluation(
         
         for page_url, html_content in crawled_pages.items():
             if store and run_id:
-                await store.record_page(run_id, page_url, html_content)
+                persistence_tasks.append(asyncio.create_task(store.record_page(run_id, page_url, html_content)))
                 
             tasks = []
             for module in active_modules:
@@ -219,16 +223,26 @@ async def run_evaluation(
                     for issue in r.issues:
                         updated_issues.append(replace(issue, location=f"[{url_path}] {issue.location}"))
                         if store and run_id:
-                            await store.record_finding(
-                                run_id=run_id,
-                                page_url=page_url,
-                                domain_id=mod.domain,
-                                issue_id=issue.id,
-                                severity=issue.severity,
-                                message=issue.message,
-                                location=issue.location,
-                                remedy=issue.remedy
+                            persistence_tasks.append(
+                                asyncio.create_task(
+                                    store.record_finding(
+                                        run_id=run_id,
+                                        page_url=page_url,
+                                        domain_id=mod.domain,
+                                        issue_id=issue.id,
+                                        severity=issue.severity,
+                                        message=issue.message,
+                                        location=issue.location,
+                                        remedy=issue.remedy,
+                                    )
+                                )
                             )
+                    if store and run_id and persistence_tasks:
+                        persistence_results = await asyncio.gather(*persistence_tasks, return_exceptions=True)
+                        for entry in persistence_results:
+                            if isinstance(entry, Exception):
+                                console.print(f"[yellow]Warning: Persistence write failed: {entry}[/yellow]")
+                        persistence_tasks = []
                     updated_r = replace(r, issues=tuple(updated_issues))
                     all_eval_results[mod.domain].append(updated_r)
 
@@ -275,31 +289,19 @@ async def run_evaluation(
             ))
             
         if store and run_id:
-            report_dict = {
-                "targetUrl": url,
-                "average_score": sum(r.score for r in consolidated_results) / len(consolidated_results) if consolidated_results else 0.0,
-                "total_issues": sum(len(r.issues) for r in consolidated_results),
-                "domains": [
-                    {
-                        "domain": r.domain,
-                        "score": r.score,
-                        "issues": [
-                            {
-                                "id": issue.id,
-                                "severity": issue.severity,
-                                "message": issue.message,
-                                "location": issue.location,
-                                "remedy": issue.remedy
-                            } for issue in r.issues
-                        ]
-                    } for r in consolidated_results
-                ]
-            }
-            await store.finish_run(run_id, report_dict, len(crawled_pages), len(consolidated_results))
+            report_payload = build_report_payload(url, consolidated_results)
+            if persistence_tasks:
+                persistence_results = await asyncio.gather(*persistence_tasks, return_exceptions=True)
+                for entry in persistence_results:
+                    if isinstance(entry, Exception):
+                        console.print(f"[yellow]Warning: Persistence write failed: {entry}[/yellow]")
+            await store.finish_run(run_id, report_payload, len(crawled_pages), len(consolidated_results))
     finally:
         close_result = client.aclose()
         if inspect.isawaitable(close_result):
             await close_result
+        from utils.browser_pool import BrowserPool
+        await BrowserPool.get_instance().close()
 
     return consolidated_results
 
@@ -391,10 +393,14 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
     """
     report_data = build_report_payload(url, results)
         
-    os.makedirs(os.path.dirname(filepath) or '.', exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(report_data, f, indent=2)
-    console.print(f"[bold green]✔ Diagnostic JSON report written to: {filepath}[/bold green]")
+    try:
+        if os.path.dirname(filepath):
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, indent=2)
+        console.print(f"[bold green]✔ Diagnostic JSON report written to: {filepath}[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Error: Failed to save JSON report to {filepath}: {str(e)}[/bold red]")
 
 @app.command()
 def evaluate(
@@ -481,11 +487,11 @@ def evaluate(
         console.print(f"[red]{str(e)}[/red]")
         raise typer.Exit(code=1)
         
-    if render or engine.lower().strip() in ["stealth", "mcp"]:
+    if render or engine.lower().strip() == "stealth":
         from modules.renderer import PLAYWRIGHT_AVAILABLE
         if not PLAYWRIGHT_AVAILABLE:
             console.print(f"[bold red]Error: Playwright is not installed in the environment.[/bold red]")
-            console.print(f"Scraping/rendering mode '{engine if not render else 'render'}' requires the 'playwright' package.")
+            console.print(f"Scraping mode '{engine if not render else 'render'}' requires the 'playwright' package.")
             console.print(f"To install it, run: [bold green]pip install playwright && playwright install[/bold green]")
             raise typer.Exit(code=1)
         

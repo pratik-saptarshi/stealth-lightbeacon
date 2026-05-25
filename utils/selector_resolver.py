@@ -86,9 +86,16 @@ class SelectorResolver:
             score += 0.2 if candidate.get_text().strip() else 0.0
         return min(score, 1.0)
 
-    def resolve(self, parser: Any, name: Any = None, attrs: Optional[Dict[str, Any]] = None, text_hint: Optional[str] = None, **kwargs) -> ResolvedSelector:
+    def resolve(
+        self,
+        parser: Any,
+        name: Any = None,
+        attrs: Optional[Dict[str, Any]] = None,
+        text_hint: Optional[str] = None,
+        **kwargs,
+    ) -> ResolvedSelector:
         name, attrs = self._split_selector(name, attrs)
-        key = self._signature(name, attrs, kwargs)
+        key = self._signature(name, attrs, {"text_hint": text_hint, **kwargs})
         cached = self.cache.get(key)
         if cached is not None:
             return cached

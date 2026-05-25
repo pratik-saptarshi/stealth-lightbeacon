@@ -42,3 +42,19 @@ def test_html_parser_uses_selector_repair_for_exact_miss():
     assert node is not None
     assert node.name == "h2"
     assert node.get_text().strip() == "Section Heading"
+
+
+def test_selector_resolver_stays_document_scoped():
+    """
+    Resolver state should not leak between parser instances.
+    """
+    parser_a = HtmlParser("<main><h1 id='title'>Primary</h1></main>")
+    parser_b = HtmlParser("<article><h1 id='heading'>Secondary</h1></article>")
+
+    first = parser_a.find("h1", attrs={"id": "main-title"}, text_hint="Primary")
+    second = parser_b.find("h1", attrs={"id": "main-title"}, text_hint="Secondary")
+
+    assert first is not None
+    assert second is not None
+    assert first.get_text().strip() == "Primary"
+    assert second.get_text().strip() == "Secondary"

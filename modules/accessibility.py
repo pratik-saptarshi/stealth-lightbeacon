@@ -20,7 +20,8 @@ class AccessibilityEvaluator(BaseEvaluator):
         """
         Executes accessibility audits on static HTML elements.
         """
-        soup = HtmlParser(html)
+        import asyncio
+        soup = await asyncio.to_thread(HtmlParser, html)
         issues = []
         scores = []
 

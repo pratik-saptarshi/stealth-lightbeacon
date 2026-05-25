@@ -40,10 +40,10 @@ python main.py evaluate --search-semantic "broken link audit"
 | `--recon-auto` | `false` | Apply the recon-recommended scraper posture automatically. |
 | `--http2` | `false` | Enable HTTP/2 for outgoing requests. |
 | `--engine` | `http` | Scraping engine: `http`, `fast`, `stealth`, or `mcp`. |
-| `--budget` | unset | JSON budget file for performance threshold enforcement. |
 | `--check-links` | `false` | Scan outbound and same-domain links for broken targets. |
 | `--check-api` | `false` | Probe common Drupal REST and JSON:API routes. |
 | `--persist` | `false` | Store runs and findings in DuckDB and LanceDB. |
+| `--budget` | unset | JSON performance budget file for post-audit thresholds. |
 | `--watch` | `false` | Start the workspace watcher loop instead of evaluating a URL. |
 | `--search-semantic` | unset | Search historical audit data using semantic similarity. |
 
@@ -55,6 +55,9 @@ The CLI also reads these environment variables for CI workflows:
 - `SLB_AUTH_TOKEN`: bearer token for authenticated CI runs.
 - `SLB_AUDITS`: comma-separated evaluator subset used by CI recipes.
 - `SLB_FAIL_ON_CRITICAL`: fail the job when any critical finding is present.
+- `SLB_MCP_COMMAND`: required executable for `--engine mcp`.
+- `SLB_MCP_ARGS`: optional argument list for MCP command invocation.
+- `SLB_MCP_HANDSHAKE_TIMEOUT`: optional MCP timeout (seconds) for handshake/tool responses.
 
 Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they rely on those variables as the CI contract.
 

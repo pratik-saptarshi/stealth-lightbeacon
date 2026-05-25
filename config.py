@@ -4,6 +4,7 @@ config.py — Shared configuration and constants for Stealth Lightbeacon.
 
 import os
 from dotenv import load_dotenv
+import shlex
 
 load_dotenv()
 
@@ -15,8 +16,8 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15       # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "StealthLightbeacon/1.1.9 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
-        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.1.9)"
+        "StealthLightbeacon/1.2.1 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.1)"
     )
 }
 
@@ -53,3 +54,8 @@ KEYWORD_STUFFING_DENSITY = 0.04   # 4% single-keyword density triggers a warning
 
 # ─── Report ───────────────────────────────────────────────────────────────────
 REPORT_OUTPUT_DIR = "reports"
+
+# ─── MCP ───────────────────────────────────────────────────────────────────────
+MCP_COMMAND = (os.getenv("SLB_MCP_COMMAND") or "").strip()
+MCP_COMMAND_ARGS = shlex.split((os.getenv("SLB_MCP_ARGS") or "").strip())
+MCP_HANDSHAKE_TIMEOUT_SECONDS = float(os.getenv("SLB_MCP_HANDSHAKE_TIMEOUT", "6"))
