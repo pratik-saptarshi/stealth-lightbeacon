@@ -9,6 +9,15 @@ An enterprise-grade, high-performance asynchronous diagnostic audit tool and cra
 
 ---
 
+## Documentation
+
+- [CLI Reference](CLI-readme.md)
+- [Architecture Guide](docs/architecture.md)
+- [Changelog](changelog.md)
+- [Contributing Guide](CONTRIBUTING.md)
+
+---
+
 ## 🏗️ Architecture & Engine Workflows
 
 The system is designed as a decoupled, concurrent **asynchronous plugin framework** in Python. A central crawler and orchestrator fetches pages recursively in parallel, feeding the static DOM structures to independent evaluation plugins. For full developer deep dives, see the [Architecture Guide](docs/architecture.md).
@@ -78,14 +87,20 @@ If you prefer to install dependencies directly on the host machine:
    ```
 2. **Install core requirements:**
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirements.txt --extra-index-url https://pypi.org/simple
    ```
-3. **Install optional browser rendering dependencies (Playwright):**
+3. **Validate pinned dependencies before merge:**
+   ```bash
+   python -m pip install pip-tools
+   pre-commit install
+   pre-commit run dependency-validation --all-files
+   ```
+4. **Install optional browser rendering dependencies (Playwright):**
    ```bash
    pip install playwright
    playwright install chromium
    ```
-4. **Setup environment variables:**
+5. **Setup environment variables:**
    ```bash
    cp .env.example .env
    # Add your Google PageSpeed Insights API Key to .env
@@ -135,7 +150,7 @@ python main.py evaluate "https://example.com" --engine stealth
 
 ## 🧪 Testing Suite & Quality Boundaries
 
-We enforce strict test coverage boundaries (minimum **90% branch coverage** target).
+We enforce coverage gates with `pytest-cov` and branch tracking, with the current minimum overall coverage floor set in `pyproject.toml`.
 
 Run the full automated test suite:
 ```bash
@@ -145,6 +160,8 @@ pytest -v
 # Run coverage audit reports
 pytest --cov=modules --cov=crawler --cov=utils --cov-report=html
 ```
+
+Current CI validates the suite on Python 3.11 with dependency resolution checks against live PyPI indexes before tests run.
 
 ---
 

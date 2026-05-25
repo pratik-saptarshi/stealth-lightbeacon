@@ -107,3 +107,32 @@ Evaluation domains are structured as independent diagnostic plugins executing co
 2. **Consolidation Pipeline:** Collects results from concurrent evaluators, merges metadata maps, and aggregates diagnostic issue logs.
 3. **Budget Compliance Check:** Feeds metrics into the `BudgetValidator` helper. If any Core Web Vitals or scores breach specified budget boundaries, throws exit code `2` to break build loops.
 4. **Autoescaped Jinja2 Output:** Exports diagnostic tables into JSON and renders a beautiful responsive Glassmorphism HTML dashboard securely, autoescaping page content to eliminate Stored XSS threats.
+
+---
+
+## 4. CLI Operating Modes
+
+The Typer entrypoint in `main.py` exposes a single `evaluate` command with several operating modes:
+
+- `URL` argument: Required unless running `--watch` or `--search-semantic`.
+- `--watch`: Starts the `WorkspaceWatcher` background loop for local directory sync workflows.
+- `--search-semantic`: Queries the `OntologyStore` vector index for historical runs and findings.
+- `--persist`: Enables DuckDB + LanceDB persistence for runs, pages, and findings.
+- `--render`: Forces rendered DOM auditing through Playwright-backed scraping.
+- `--engine`: Selects the scraping strategy: `http`, `fast`, `stealth`, or `mcp`.
+- `--crawl-depth` and `--max-urls`: Control recursive crawl breadth and circuit breaking.
+- `--check-links` and `--check-api`: Enable outbound link checks and Drupal API discovery.
+- `--budget`: Applies an external JSON performance budget after evaluation.
+
+The CLI also exposes `--out`, `--format`, `--http2`, and `--allow-private` for report routing, protocol tuning, and SSRF-boundary overrides.
+
+---
+
+## 5. Dependency and Validation Pipeline
+
+The repository now validates pinned dependencies before test execution:
+
+1. `requirements.txt` remains the source of truth for runtime pins.
+2. `scripts/validate_dependencies.py` calls `piptools compile` against the live PyPI index to catch incompatible pins before merge.
+3. `.github/workflows/ci.yml` installs dependencies with `--extra-index-url https://pypi.org/simple`, validates the lock state, then runs the test suite on Python 3.11.
+4. `pre-commit run dependency-validation --all-files` mirrors the CI check locally so dependency drift is caught early.
