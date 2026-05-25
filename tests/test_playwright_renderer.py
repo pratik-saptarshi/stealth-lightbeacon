@@ -30,11 +30,10 @@ async def test_playwright_renderer_success():
     mock_context.new_page.return_value = mock_page
     mock_page.content.return_value = "<html><body><h1>Rendered by Playwright</h1></body></html>"
     
-    with patch("playwright.async_api.async_playwright") as mock_ap:
-        mock_playwright_instance = AsyncMock()
-        mock_playwright_instance.chromium.launch.return_value = mock_browser
-        # Mock the context manager __aenter__
-        mock_ap.return_value.__aenter__.return_value = mock_playwright_instance
+    with patch("utils.browser_pool.BrowserPool.get_instance") as mock_gp:
+        mock_pool = AsyncMock()
+        mock_pool.get_browser.return_value = mock_browser
+        mock_gp.return_value = mock_pool
         
         html = await renderer.render("https://example.com/dynamic-js")
         

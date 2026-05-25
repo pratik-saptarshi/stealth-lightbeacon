@@ -1,6 +1,6 @@
 # Stealth Lightbeacon — Architecture & Technical Workflows
 
-This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine.
+This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine. It is kept in sync with the `v1.2.2` release train.
 
 ---
 
@@ -90,15 +90,15 @@ Auditing sophisticated properties requires evading standard anti-bot triggers. T
 - **HttpEngine (Standard):** High-speed, low-footprint direct HTTP client using customized modern browser headers and HTTP/2 transport profiles.
 - **ObscuraEngine (Fast-Path):** Spawns a compiled hermetic Rust static binary `./bin/obscura` via subprocesses to negotiate low-level TLS handshakes, spoofing standard client signatures.
 - **ZendriverEngine (Heavy-Path):** Automated anti-detect Chromium controller powered by Playwright. Intercepts webdriver parameters, emulates system fonts/plugins, overrides WebGL GPU descriptors, and simulates human mouse gestures to defeat zero-day bot challenges.
-- **StealthMcpLayer (Model Context Protocol):** Client wrapper encapsulating queries into standard MCP tool calls (Playwright integration stdio sessions) for autonomous agent orchestrators. It now requires an explicitly pinned executable or versioned package via `SLB_MCP_COMMAND` / `SLB_MCP_ARGS`; the mutable runtime-download default is disabled.
+- **StealthMcpLayer (Model Context Protocol):** Client wrapper encapsulating queries into standard MCP tool calls (Playwright integration stdio sessions) for autonomous agent orchestrators. It requires an explicitly pinned executable or versioned package via `SLB_MCP_COMMAND` / `SLB_MCP_ARGS`; the mutable runtime-download default is disabled.
 
 ### 🔌 4. Decoupled Diagnostic Plugins (`modules/`)
 Evaluation domains are structured as independent diagnostic plugins executing concurrently:
-- **`seo.py` (SEO compliance):** Canonical tags checks, autoescaped robots directives matching, and `application/ld+json` parsing.
+- **`seo.py` (SEO compliance):** Canonical tags checks, autoescaped robots directives matching, and `application/ld+json` parsing. The evaluator now normalizes empty and `None`-like attribute values before string checks so malformed markup degrades into findings instead of exceptions.
 - **`pagespeed.py` (PageSpeed & Performance):** Concurrent Google PSI API client. Integrates an asynchronous SQLite caching system mapping URL MD5 hashes to past response structures under **Write-Ahead Logging (WAL)** and **Normal Sync** mode to prevent write lock bottlenecks.
 - **`accessibility.py` (WCAG 2.2 AA):** Checks WCAG rules including alt tag values, headings nesting hierarchy sequences, and missing form label links.
 - **`aeo_geo.py` (Answer Engine Optimization Heuristics):** Analyzes speakable schemas, conversation Q&A outline lengths (Featured Snippets), E-E-A-T schemas authority records, and single keyword densities.
-- **`ux.py` (UX Performance):** Assesses viewports, inline readability limits, tap target widths/heights, and menu nesting levels. Scans DOM and body text for user privacy consent popups compliance (EU Compliance).
+- **`ux.py` (UX Performance):** Assesses viewports, inline readability limits, tap target widths/heights, and menu nesting levels. It now normalizes missing `content`, `style`, `class`, and `id` attributes before scoring, which keeps malformed HTML from crashing UX audits. Scans DOM and body text for user privacy consent popups compliance (EU Compliance).
 - **`drupal.py` (CMS & Security):** Footprints generator tokens and core path disclosures, checks security headers (HSTS, CSP, X-Frame-Options), and probes exposed default JSON:API routers (`/jsonapi/user/user`).
 
 ---
@@ -140,6 +140,8 @@ The supporting utility layer keeps the orchestration surface stable:
 - `utils/selector_resolver.py` and `modules/html_parser.py` repair selectors when small layout shifts break exact matches, scoped per parser instance so repaired DOM state never leaks between documents.
 - `utils/crawl_diff.py` and `utils/ontology.py` compare canonical audit payloads and persisted runs to highlight regressions and improvements.
 - `utils/ontology.py` buffers vector writes during the crawl and flushes them in batches to reduce hot-path persistence cost.
+- `scripts/run_public_audit.sh` wraps the standard evaluate flow for a public audit profile and accepts `TARGET=...` style overrides.
+- `SLB_MCP_COMMAND`, `SLB_MCP_ARGS`, `SLB_MCP_HANDSHAKE_TIMEOUT`, `SLB_MCP_TOOL_TIMEOUT`, and `SLB_MCP_SHUTDOWN_TIMEOUT` define the MCP runtime contract when `--engine mcp` is selected.
 - `utils/agent_card.py` defines the stable agent-card manifest used by orchestration consumers.
 
 ---
@@ -152,3 +154,7 @@ The repository now validates pinned dependencies before test execution:
 2. `scripts/validate_dependencies.py` calls `piptools compile` against the live PyPI index to catch incompatible pins before merge.
 3. `.github/workflows/ci.yml` installs dependencies with `--extra-index-url https://pypi.org/simple`, validates the lock state, then runs the test suite on Python 3.11.
 4. `pre-commit run dependency-validation --all-files` mirrors the CI check locally so dependency drift is caught early.
+5. The current release notes for `v1.2.2` live in `changelog.md` and the alias docs point to the same history.
+
+The prioritized remediation roadmap and phase validation gates live in
+[`docs/architecture-beads-plan.md`](docs/architecture-beads-plan.md).

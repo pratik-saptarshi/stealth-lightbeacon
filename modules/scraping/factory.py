@@ -33,9 +33,10 @@ class ScrapingFactory:
             
         elif engine_type == "mcp":
             # Model Context Protocol browser tools standard layer
+            mcp_args = getattr(config, "MCP_COMMAND_ARGS", config.MCP_ARGS)
             return StealthMcpLayer(
                 mcp_command=config.MCP_COMMAND,
-                mcp_args=config.MCP_ARGS or None,
+                mcp_args=mcp_args or None,
                 handshake_timeout=config.MCP_HANDSHAKE_TIMEOUT,
                 tool_timeout=config.MCP_TOOL_TIMEOUT,
                 shutdown_timeout=config.MCP_SHUTDOWN_TIMEOUT,

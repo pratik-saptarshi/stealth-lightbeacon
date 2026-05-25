@@ -24,7 +24,8 @@ class AeoGeoEvaluator(BaseEvaluator):
         """
         Runs speculative and NLP algorithms to verify AEO and GEO optimization properties.
         """
-        soup = HtmlParser(html)
+        import asyncio
+        soup = await asyncio.to_thread(HtmlParser, html)
         issues = []
         scores = []
         readiness_components = {}

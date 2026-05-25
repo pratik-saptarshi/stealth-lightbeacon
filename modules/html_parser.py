@@ -419,10 +419,11 @@ class HtmlParser:
         self._selector_resolver = SelectorResolver()
 
     def find(self, name=None, attrs=None, **kwargs) -> Optional[HtmlNode]:
+        text_hint = kwargs.pop("text_hint", None)
         p = self._parser.find(name, attrs, **kwargs)
         if p:
             return HtmlNode(p)
-        resolved = self._selector_resolver.resolve(self, name, attrs, **kwargs)
+        resolved = self._selector_resolver.resolve(self, name, attrs, text_hint=text_hint, **kwargs)
         selector_name, selector_attrs = self._selector_resolver._split_selector(resolved.selector, None)
         repaired = self._parser.find(selector_name, selector_attrs, **kwargs)
         return HtmlNode(repaired) if repaired else None
