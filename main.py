@@ -3,13 +3,10 @@ main.py — Main orchestration and Typer CLI entry point for Stealth Lightbeacon
 """
 
 import asyncio
-import inspect
 import os
 import json
-import httpx
 import typer
-from typing import Optional, List, Dict, Any
-from dataclasses import dataclass, replace
+from typing import Optional, List, Any
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -17,8 +14,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # Import configuration and constants
 import config
-from modules.base import BaseEvaluator, EvaluationResult, Issue
+from modules.base import EvaluationResult
 from report.formats import build_report_payload, render_report_format
+from services.audit_service import run_evaluation as service_run_evaluation
+from services.errors import AuditServiceError
+from services.evaluators import select_active_evaluators
+from services.runtime import RuntimeSettings, build_runtime_settings
 
 # Initialize Typer and Rich Console
 try:
@@ -34,88 +35,9 @@ except ImportError:
 app = typer.Typer(help="Stealth Lightbeacon: Diagnostic Audit Tool for SEO, Performance, and Accessibility.")
 console = Console()
 
-
-@dataclass(frozen=True)
-class RuntimeSettings:
-    url: Optional[str]
-    output_dir: str
-    audits: List[str]
-    auth_token: str
-    fail_on_critical: bool
-
-
-def _env_flag(name: str, default: bool = False) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def build_runtime_settings(
-    url: Optional[str],
-    audits: Optional[str],
-    fail_on_critical: bool,
-    output_dir: Optional[str] = None,
-    auth_token: Optional[str] = None,
-) -> RuntimeSettings:
-    resolved_url = (url or os.getenv("SLB_TARGET_URL", "")).strip() or None
-    resolved_audits = (audits or os.getenv("SLB_AUDITS", "")).strip()
-    resolved_auth = (auth_token or os.getenv("SLB_AUTH_TOKEN", "")).strip()
-    resolved_fail = fail_on_critical or _env_flag("SLB_FAIL_ON_CRITICAL", False)
-    audit_list = [item.strip() for item in resolved_audits.split(",") if item.strip()] if resolved_audits else []
-    return RuntimeSettings(
-        url=resolved_url,
-        output_dir=output_dir or config.REPORT_OUTPUT_DIR,
-        audits=audit_list,
-        auth_token=resolved_auth,
-        fail_on_critical=resolved_fail,
-    )
-
-
-def select_active_evaluators(audits: Optional[str] = None) -> List[BaseEvaluator]:
-    from modules.accessibility import AccessibilityEvaluator
-    from modules.aeo_geo import AeoGeoEvaluator
-    from modules.drupal import DrupalEvaluator
-    from modules.pagespeed import PagespeedEvaluator
-    from modules.seo import SeoEvaluator
-    from modules.ux import UxEvaluator
-
-    all_evaluators = [
-        ("seo", SeoEvaluator),
-        ("performance", PagespeedEvaluator),
-        ("accessibility", AccessibilityEvaluator),
-        ("aeo-geo", AeoGeoEvaluator),
-        ("ux", UxEvaluator),
-        ("security", DrupalEvaluator),
-    ]
-    if not audits:
-        return [factory() for _, factory in all_evaluators]
-
-    requested = {item.strip().lower() for item in audits.split(",") if item.strip()}
-    if not requested or requested.intersection({"all", "*"}):
-        return [factory() for _, factory in all_evaluators]
-
-    aliases = {
-        "seo": "seo",
-        "performance": "performance",
-        "accessibility": "accessibility",
-        "aeo": "aeo-geo",
-        "geo": "aeo-geo",
-        "aeo-geo": "aeo-geo",
-        "ux": "ux",
-        "security": "security",
-        "drupal": "security",
-    }
-    normalized = {aliases.get(item, item) for item in requested}
-    selected = []
-    for key, factory in all_evaluators:
-        if key in normalized:
-            selected.append(factory())
-    return selected
-
 async def run_evaluation(
     url: str,
-    active_modules: List[BaseEvaluator],
+    active_modules: List[Any],
     allow_private: bool = False,
     crawl_depth: int = 0,
     max_urls: int = 10,
@@ -128,166 +50,26 @@ async def run_evaluation(
     run_id: Optional[str] = None,
     auth_token: Optional[str] = None
 ) -> List[EvaluationResult]:
-    """
-    Asynchronously crawls the target URL (recursively if crawl_depth > 0)
-    and runs all specified evaluation modules concurrently, consolidating the results.
-    Optional OntologyStore integration allows for DuckDB and LanceDB persistence.
-    """
-    from utils.ssrf_guard import SSRFGuard, SSRFViolationError
-    from crawler import Crawler
-    from modules.renderer import PlaywrightRenderer
-    from urllib.parse import urlparse
-    
-    # 0. Validate SSRF Safety
     try:
-        guard = SSRFGuard(allow_private=allow_private)
-        await guard.validate(url)
-    except SSRFViolationError as e:
-        console.print(f"[bold red]Security Error: SSRF Protection blocked request to {url}[/bold red]")
-        console.print(f"[red]{str(e)}[/red]")
-        raise typer.Exit(code=1)
-        
-    crawled_pages: Dict[str, str] = {}
-    crawler = None
-    
-    # 1. Resolve browser renderer/scraping engine strategy
-    renderer = scraping_engine
-    if not renderer and render:
-        renderer = PlaywrightRenderer()
-    
-    # 2. Crawl Target Site
-    from utils.ssrf_guard import SSRFHTTPTransport
-    guard = SSRFGuard(allow_private=allow_private)
-    transport = SSRFHTTPTransport(guard=guard, http2=http2)
-    client = httpx.AsyncClient(
-        transport=transport,
-        timeout=config.REQUEST_TIMEOUT,
-        headers=config.build_request_headers(auth_token),
-    )
-    try:
-        if crawl_depth > 0 or check_links:
-            console.print(f"[bold blue]Initiating crawler (depth={crawl_depth if crawl_depth > 0 else 1}, max_urls={max_urls}, check_links={check_links})...[/bold blue]")
-            crawler = Crawler(url, max_depth=crawl_depth if crawl_depth > 0 else 1, max_urls=max_urls, allow_private=allow_private)
-            crawled_pages = await crawler.crawl(client, renderer)
-            console.print(f"[bold green]✔ Crawler finished. Discovered {len(crawled_pages)} pages.[/bold green]")
-            
-            if crawl_depth == 0 and check_links:
-                # Keep only start url in crawled_pages for full HTML evaluation, but keep crawler.broken_links!
-                start_normalized = crawler.start_url
-                matching_url = next((u for u in crawled_pages if urlparse(u).path == urlparse(start_normalized).path), start_normalized)
-                crawled_pages = {matching_url: crawled_pages.get(matching_url, "")}
-        else:
-            try:
-                if renderer:
-                    console.print(f"[bold blue]Scraping page DOM using pluggable engine {type(renderer).__name__}...[/bold blue]")
-                    if hasattr(renderer, "scrape"):
-                        html_content = await renderer.scrape(url)
-                    else:
-                        html_content = await renderer.render(url)
-                    crawled_pages[url] = html_content
-                else:
-                    response = await client.get(url, follow_redirects=True)
-                    response.raise_for_status()
-                    crawled_pages[str(response.url)] = response.text
-            except Exception as e:
-                console.print(f"[bold red]Error: Failed to fetch target URL: {url}[/bold red]")
-                console.print(f"[red]{str(e)}[/red]")
-                raise typer.Exit(code=1)
-                
-        # 2. Run Evaluator Modules Concurrently on all crawled pages
-        all_eval_results: Dict[str, List[EvaluationResult]] = {mod.domain: [] for mod in active_modules}
-        
-        for page_url, html_content in crawled_pages.items():
-            if store and run_id:
-                await store.record_page(run_id, page_url, html_content)
-                
-            tasks = []
-            for module in active_modules:
-                kwargs = {"allow_private": allow_private}
-                if type(module).__name__ == "DrupalEvaluator":
-                    kwargs["check_api"] = check_api
-                tasks.append(module.evaluate(html_content, page_url, client, **kwargs))
-                
-            page_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Group results by domain
-            for idx, r in enumerate(page_results):
-                mod = active_modules[idx]
-                if isinstance(r, Exception):
-                    console.print(f"[bold yellow]Warning: Evaluator '{mod.domain}' failed on {page_url}: {str(r)}[/bold yellow]")
-                else:
-                    # Update issue locations to specify the page path
-                    url_path = urlparse(page_url).path or "/"
-                    updated_issues = []
-                    for issue in r.issues:
-                        updated_issues.append(replace(issue, location=f"[{url_path}] {issue.location}"))
-                        if store and run_id:
-                            await store.record_finding(
-                                run_id=run_id,
-                                page_url=page_url,
-                                domain_id=mod.domain,
-                                issue_id=issue.id,
-                                severity=issue.severity,
-                                message=issue.message,
-                                location=issue.location,
-                                remedy=issue.remedy,
-                            )
-                    updated_r = replace(r, issues=tuple(updated_issues))
-                    all_eval_results[mod.domain].append(updated_r)
-
-        # 3. Consolidate results across all crawled pages
-        consolidated_results: List[EvaluationResult] = []
-        
-        for mod in active_modules:
-            domain_results = all_eval_results.get(mod.domain, [])
-            if not domain_results:
-                continue
-                
-            avg_score = sum(r.score for r in domain_results) / len(domain_results)
-            
-            all_issues = []
-            for r in domain_results:
-                all_issues.extend(r.issues)
-                
-            if mod.domain == "Technical SEO" and check_links and crawler and hasattr(crawler, "broken_links") and crawler.broken_links:
-                updated_issues = list(all_issues)
-                for b_link, status in crawler.broken_links.items():
-                    updated_issues.append(Issue(
-                        id="R-SEO-BROKEN-LINK",
-                        severity=config.SEVERITY_WARNING,
-                        message=f"Discovered broken outbound link: {b_link} returned status {status}.",
-                        location="Link href reference",
-                        remedy="Inspect and correct the destination URL or remove the inactive hyperlink reference."
-                    ))
-                all_issues = tuple(updated_issues)
-                
-            # Merge metadata
-            merged_metadata = {"crawled_pages_count": len(domain_results)}
-            for r in domain_results:
-                for k, v in r.metadata.items():
-                    if k not in merged_metadata:
-                        merged_metadata[k] = v
-                    elif isinstance(v, (int, float)):
-                        merged_metadata[k] += v
-                        
-            consolidated_results.append(EvaluationResult(
-                domain=mod.domain,
-                score=round(avg_score, 1),
-                issues=all_issues,
-                metadata=merged_metadata
-            ))
-            
-        if store and run_id:
-            report_payload = build_report_payload(url, consolidated_results)
-            await store.finish_run(run_id, report_payload, len(crawled_pages), len(consolidated_results))
-    finally:
-        close_result = client.aclose()
-        if inspect.isawaitable(close_result):
-            await close_result
-        from utils.browser_pool import BrowserPool
-        await BrowserPool.get_instance().close()
-
-    return consolidated_results
+        return await service_run_evaluation(
+            url=url,
+            active_modules=active_modules,
+            allow_private=allow_private,
+            crawl_depth=crawl_depth,
+            max_urls=max_urls,
+            render=render,
+            http2=http2,
+            scraping_engine=scraping_engine,
+            check_links=check_links,
+            check_api=check_api,
+            store=store,
+            run_id=run_id,
+            auth_token=auth_token,
+        )
+    except AuditServiceError as exc:
+        console.print(f"[bold red]{exc.title}[/bold red]")
+        console.print(f"[red]{exc.detail}[/red]")
+        raise typer.Exit(code=exc.exit_code) from exc
 
 def print_terminal_report(url: str, results: List[EvaluationResult]):
     """
