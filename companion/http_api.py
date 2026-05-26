@@ -115,6 +115,15 @@ class CompanionApi:
                     details=f"{method} {normalized_path}",
                 )
             return HTTPStatus.OK, self.job_manager.get_result(segments[1])
+        if len(segments) == 3 and segments[0] == "evaluations" and segments[2] == "artifacts":
+            if method != "GET":
+                raise ApiRouteError(
+                    status=HTTPStatus.METHOD_NOT_ALLOWED,
+                    code="method_not_allowed",
+                    message="Route does not support that HTTP method.",
+                    details=f"{method} {normalized_path}",
+                )
+            return HTTPStatus.OK, self.job_manager.get_artifacts(segments[1])
 
         raise ApiRouteError(
             status=HTTPStatus.NOT_FOUND,

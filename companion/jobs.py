@@ -403,6 +403,25 @@ class EvaluationJobManager:
             "completedAt": record.completed_at,
         }
 
+    def get_artifacts(self, evaluation_id: str) -> List[Dict[str, Any]]:
+        record = self._get_record(evaluation_id)
+        if not record.terminal:
+            raise ApiRouteError(
+                status=409,
+                code="conflict",
+                message="Evaluation artifacts are not ready.",
+                details=evaluation_id,
+            )
+        return [
+            {
+                "name": artifact["name"],
+                "kind": artifact["kind"],
+                "mediaType": artifact["mediaType"],
+                "downloadUrl": artifact.get("downloadUrl"),
+            }
+            for artifact in record.artifacts
+        ]
+
     def _get_record(self, evaluation_id: str) -> EvaluationRecord:
         if not evaluation_id.strip():
             raise ApiRouteError(
