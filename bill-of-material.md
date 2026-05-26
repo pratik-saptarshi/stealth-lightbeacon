@@ -34,7 +34,7 @@ The following dependencies are automatically parsed and verified against [requir
 * **lxml** (`==6.1.1`): Fast XML and HTML parsing backend.
 * **Jinja2** (`==3.1.6`): Autoescaped layout templating engine.
 * **colorama** (`==0.4.6`): Terminal colors compatibility support.
-* **python-dotenv** (`==1.0.1`): Environment variables loader.
+* **python-dotenv** (`==1.2.2`): Environment variables loader.
 * **tldextract** (`==5.3.0`): Accurate domain and subdomain parser.
 * **rich** (`==15.0.0`): Rich formatting and console output tables.
 * **httpx** (`==0.28.1`): Non-blocking asynchronous HTTP/2 client.
