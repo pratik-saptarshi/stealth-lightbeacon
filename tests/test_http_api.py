@@ -128,3 +128,25 @@ def test_create_evaluation_route_rejects_invalid_profile():
         "status": 400,
         "details": "unsupported",
     }
+
+
+def test_result_route_rejects_non_terminal_evaluations():
+    api = CompanionApi(
+        base_url=BASE_URL,
+        job_manager=EvaluationJobManager(auto_start=False),
+    )
+    _, accepted = api.dispatch("POST", "/evaluations", body=sample_request())
+
+    try:
+        api.dispatch("GET", f"/evaluations/{accepted['evaluationId']}/result")
+    except ApiRouteError as exc:
+        payload = exc.to_payload()
+    else:  # pragma: no cover - defensive branch
+        raise AssertionError("expected ApiRouteError")
+
+    assert payload == {
+        "code": "conflict",
+        "message": "Evaluation result is not ready.",
+        "status": 409,
+        "details": accepted["evaluationId"],
+    }
