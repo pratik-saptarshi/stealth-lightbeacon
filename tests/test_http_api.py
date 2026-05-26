@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from unittest.mock import patch
 from urllib.request import urlopen
 
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
@@ -139,6 +140,55 @@ def test_capabilities_route_rejects_incompatible_desktop_versions():
         "message": "Desktop version is not supported by this backend.",
         "status": 409,
         "details": "0.0.1",
+    }
+
+
+def test_recon_route_returns_advisory_payload():
+    api = CompanionApi(base_url=BASE_URL)
+    payload = {
+        "target": "https://example.com",
+        "recommendation": "stealth",
+        "posture": "browser",
+        "confidence": 0.9,
+        "evidence": ["cloudflare", "status:403"],
+        "evidenceSummary": "cloudflare, status:403",
+        "signals": ["cloudflare"],
+        "autoSelectAllowed": True,
+    }
+
+    with patch("companion.http_api.run_recon_request", return_value=payload) as run_recon:
+        status, response = api.dispatch(
+            "POST",
+            "/recon",
+            body={"target": "https://example.com"},
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+        )
+
+    assert status == 200
+    assert response == payload
+    run_recon.assert_called_once_with({"target": "https://example.com"})
+
+
+def test_recon_route_rejects_invalid_targets():
+    api = CompanionApi(base_url=BASE_URL)
+
+    try:
+        api.dispatch(
+            "POST",
+            "/recon",
+            body={"target": "example"},
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+        )
+    except ApiRouteError as exc:
+        payload = exc.to_payload()
+    else:  # pragma: no cover - defensive branch
+        raise AssertionError("expected ApiRouteError")
+
+    assert payload == {
+        "code": "invalid_request",
+        "message": "Recon target URL must be an absolute HTTP or HTTPS URL.",
+        "status": 400,
+        "details": "example",
     }
 
 

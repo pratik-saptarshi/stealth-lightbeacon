@@ -62,9 +62,14 @@ def _recon_response_example() -> Dict[str, Any]:
         auto_select_allowed=True,
     )
     return {
+        "target": recommendation.url,
         "recommendation": recommendation.recommended_engine,
+        "posture": recommendation.posture,
         "confidence": recommendation.confidence,
+        "evidence": list(recommendation.evidence),
         "evidenceSummary": ", ".join(recommendation.evidence),
+        "signals": list(recommendation.signals),
+        "autoSelectAllowed": recommendation.auto_select_allowed,
     }
 
 
@@ -301,7 +306,25 @@ def build_openapi_document() -> Dict[str, Any]:
                                     "example": _recon_response_example(),
                                 }
                             },
-                        }
+                        },
+                        "400": {
+                            "description": "Invalid recon request",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "401": {
+                            "description": "Remote API auth required",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "409": {
+                            "description": "Desktop client is incompatible",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
                     },
                 }
             },
@@ -494,15 +517,35 @@ def build_openapi_document() -> Dict[str, Any]:
                 "ReconResponse": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["recommendation", "confidence", "evidenceSummary"],
+                    "required": [
+                        "target",
+                        "recommendation",
+                        "posture",
+                        "confidence",
+                        "evidence",
+                        "evidenceSummary",
+                        "signals",
+                        "autoSelectAllowed",
+                    ],
                     "properties": {
+                        "target": {"type": "string", "format": "uri"},
                         "recommendation": {"type": "string"},
+                        "posture": {"type": "string"},
                         "confidence": {
                             "type": "number",
                             "minimum": 0,
                             "maximum": 1,
                         },
+                        "evidence": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
                         "evidenceSummary": {"type": "string"},
+                        "signals": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "autoSelectAllowed": {"type": "boolean"},
                     },
                 },
             }
