@@ -1,0 +1,1 @@
+"""HTTP companion adapter package."""
