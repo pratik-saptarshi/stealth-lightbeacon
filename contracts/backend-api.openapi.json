@@ -331,9 +331,49 @@
                   "$ref": "#/components/schemas/ReconResponse"
                 },
                 "example": {
+                  "target": "https://example.com",
                   "recommendation": "stealth",
+                  "posture": "browser",
                   "confidence": 0.9,
-                  "evidenceSummary": "cloudflare, status:403"
+                  "evidence": [
+                    "cloudflare",
+                    "status:403"
+                  ],
+                  "evidenceSummary": "cloudflare, status:403",
+                  "signals": [
+                    "cloudflare"
+                  ],
+                  "autoSelectAllowed": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid recon request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Remote API auth required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Desktop client is incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -650,12 +690,24 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "target",
           "recommendation",
+          "posture",
           "confidence",
-          "evidenceSummary"
+          "evidence",
+          "evidenceSummary",
+          "signals",
+          "autoSelectAllowed"
         ],
         "properties": {
+          "target": {
+            "type": "string",
+            "format": "uri"
+          },
           "recommendation": {
+            "type": "string"
+          },
+          "posture": {
             "type": "string"
           },
           "confidence": {
@@ -663,8 +715,23 @@
             "minimum": 0,
             "maximum": 1
           },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "evidenceSummary": {
             "type": "string"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autoSelectAllowed": {
+            "type": "boolean"
           }
         }
       }

@@ -61,9 +61,13 @@ def test_capabilities_and_recon_examples_track_existing_backend_seams():
     recon_example = doc["paths"]["/recon"]["post"]["responses"]["200"]["content"][
         "application/json"
     ]["example"]
+    assert recon_example["target"] == "https://example.com"
     assert recon_example["recommendation"] == "stealth"
+    assert recon_example["posture"] == "browser"
     assert recon_example["confidence"] == 0.9
+    assert "cloudflare" in recon_example["evidence"]
     assert "cloudflare" in recon_example["evidenceSummary"]
+    assert recon_example["autoSelectAllowed"] is True
 
 
 def test_exported_snapshot_matches_generated_contract():

@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
 from companion.errors import ApiRouteError
 from companion.jobs import DEFAULT_JOB_MANAGER, EvaluationJobManager
+from companion.recon_api import run_recon_request
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
 
 SERVICE_NAME = "stealth-lightbeacon-api"
@@ -162,6 +163,16 @@ class CompanionApi:
                 )
             self._require_protected_access(normalized_headers)
             return HTTPStatus.ACCEPTED, self.job_manager.submit(body or {})
+        if normalized_path == "/recon":
+            if method != "POST":
+                raise ApiRouteError(
+                    status=HTTPStatus.METHOD_NOT_ALLOWED,
+                    code="method_not_allowed",
+                    message="Route does not support that HTTP method.",
+                    details=f"{method} {normalized_path}",
+                )
+            self._require_protected_access(normalized_headers)
+            return HTTPStatus.OK, run_recon_request(body or {})
 
         segments = [segment for segment in normalized_path.split("/") if segment]
         if len(segments) == 2 and segments[0] == "evaluations":
