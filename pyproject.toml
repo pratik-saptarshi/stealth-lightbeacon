@@ -12,7 +12,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["modules", "crawler", "utils"]
+source = ["modules", "crawler", "utils", "services"]
 omit = [
     "tests/*",
     "main.py",
