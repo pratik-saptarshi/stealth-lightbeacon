@@ -9,6 +9,10 @@ from modules.html_parser import HtmlParser
 import config
 from modules.base import BaseEvaluator, EvaluationResult, Issue
 
+
+def _safe_text(value: Any) -> str:
+    return str(value or "").strip()
+
 class UxEvaluator(BaseEvaluator):
     """
     Evaluator for static UX performance and mobile usability heuristics.
@@ -36,7 +40,7 @@ class UxEvaluator(BaseEvaluator):
             ))
             scores.append(2.0)
         else:
-            content = viewport.get("content", "").lower()
+            content = _safe_text(viewport.get("content")).lower()
             if "width=device-width" not in content:
                 issues.append(Issue(
                     id="R-UX-VIEWPORT-WIDTH",
@@ -54,7 +58,7 @@ class UxEvaluator(BaseEvaluator):
         small_font_count = 0
         
         for idx, tag in enumerate(inline_styles):
-            style = tag.get("style", "").lower()
+            style = _safe_text(tag.get("style")).lower()
             # Match font-size with small px values (e.g., font-size: 10px or font-size: 8px)
             match = re.search(r"font-size\s*:\s*(\d+)\s*px", style)
             if match:
@@ -80,8 +84,8 @@ class UxEvaluator(BaseEvaluator):
         max_depth = 0
         
         for nav in nav_elements:
-            class_list = "".join(nav.get("class", [])).lower()
-            id_str = nav.get("id", "").lower()
+            class_list = "".join(str(item) for item in (nav.get("class") or [])).lower()
+            id_str = _safe_text(nav.get("id")).lower()
             
             if "menu" in class_list or "menu" in id_str or nav.name == "nav":
                 # Find maximum nesting level of ul/ol tags
@@ -112,7 +116,7 @@ class UxEvaluator(BaseEvaluator):
         tap_issue_index = 1
         
         for tag in interactive_tags:
-            style = tag.get("style", "").lower()
+            style = _safe_text(tag.get("style")).lower()
             tag_flagged = False
             
             # Checks for height/width under 48px (standard Google UX threshold)

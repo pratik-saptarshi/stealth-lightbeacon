@@ -11,6 +11,10 @@ from modules.html_parser import HtmlParser
 import config
 from modules.base import BaseEvaluator, EvaluationResult, Issue
 
+
+def _safe_text(value: Any) -> str:
+    return str(value or "").strip()
+
 class SeoEvaluator(BaseEvaluator):
     """
     Evaluator for technical SEO. Analyzes canonical tags, structured JSON-LD, metadata, sitemaps, and robots.txt.
@@ -70,7 +74,7 @@ class SeoEvaluator(BaseEvaluator):
             ))
             scores.append(2.0)
         else:
-            canonical_href = canonical_tag.get("href", "").strip()
+            canonical_href = _safe_text(canonical_tag.get("href"))
             if not canonical_href:
                 issues.append(Issue(
                     id="R-SEO-CAN-EMPTY",
@@ -173,7 +177,8 @@ class SeoEvaluator(BaseEvaluator):
         # ─── 3. Metadata & Tag Hierarchy Validation ──────────────────────
         # Title Tag
         title_tag = soup.find("title")
-        if not title_tag or not title_tag.string:
+        title_text = _safe_text(title_tag.string) if title_tag else ""
+        if not title_tag or not title_text:
             issues.append(Issue(
                 id="R-SEO-TITLE-MISS",
                 severity=config.SEVERITY_CRITICAL,
@@ -183,7 +188,7 @@ class SeoEvaluator(BaseEvaluator):
             ))
             scores.append(2.0)
         else:
-            title_len = len(title_tag.string.strip())
+            title_len = len(title_text)
             if title_len < 10 or title_len > 60:
                 issues.append(Issue(
                     id="R-SEO-TITLE-LEN",
@@ -198,7 +203,7 @@ class SeoEvaluator(BaseEvaluator):
 
         # Meta Description
         meta_desc = soup.find("meta", attrs={"name": "description"})
-        if not meta_desc or not meta_desc.get("content", "").strip():
+        if not meta_desc or not _safe_text(meta_desc.get("content")):
             issues.append(Issue(
                 id="R-SEO-DESC-MISS",
                 severity=config.SEVERITY_CRITICAL,
@@ -208,7 +213,7 @@ class SeoEvaluator(BaseEvaluator):
             ))
             scores.append(2.0)
         else:
-            desc_len = len(meta_desc.get("content", "").strip())
+            desc_len = len(_safe_text(meta_desc.get("content")))
             if desc_len < 110 or desc_len > 160:
                 issues.append(Issue(
                     id="R-SEO-DESC-LEN",
@@ -239,7 +244,7 @@ class SeoEvaluator(BaseEvaluator):
         # Robots Index Directives
         meta_robots = soup.find("meta", attrs={"name": "robots"})
         if meta_robots:
-            content_robots = meta_robots.get("content", "").lower()
+            content_robots = _safe_text(meta_robots.get("content")).lower()
             if "noindex" in content_robots:
                 issues.append(Issue(
                     id="R-SEO-ROBOTS-NOINDEX",

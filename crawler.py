@@ -92,6 +92,9 @@ class Crawler:
                 await asyncio.sleep(self.rate_delay)
                 
             async with self.semaphore:
+                if len(visited_content) >= self.max_urls:
+                    queue.task_done()
+                    continue
                 try:
                     # 1. Pre-fetch SSRF Guard validation
                     await guard.validate(url)

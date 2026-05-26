@@ -44,3 +44,30 @@ async def test_seo_evaluator_invalid_html(mock_html_invalid: str):
     assert "R-SEO-LD-MISS" in issue_ids
     assert any(issue_id.startswith("R-SEO-DESC-") for issue_id in issue_ids)
     assert "R-SEO-ROBOTS-NOINDEX" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_seo_evaluator_handles_none_like_attributes():
+    """
+    Verifies that malformed attributes that parse as None do not crash the evaluator.
+    """
+    html = """<!DOCTYPE html>
+<html>
+<head>
+  <title>Example</title>
+  <link rel="canonical" href>
+  <meta name="description" content>
+  <meta name="robots" content>
+</head>
+<body>
+  <main>Content</main>
+</body>
+</html>
+"""
+    evaluator = SeoEvaluator()
+    result = await evaluator.evaluate(html, "https://example.com/none-attrs")
+
+    assert isinstance(result, EvaluationResult)
+    issue_ids = [issue.id for issue in result.issues]
+    assert "R-SEO-CAN-EMPTY" in issue_ids
+    assert "R-SEO-DESC-MISS" in issue_ids

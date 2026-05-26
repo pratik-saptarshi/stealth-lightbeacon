@@ -69,3 +69,29 @@ async def test_ux_evaluator_invalid(mock_html_ux_invalid: str):
     assert "R-UX-NAV-DEPTH" in issue_ids
     assert "R-UX-FONT-SMALL-0" in issue_ids
     assert "R-UX-TAP-HEIGHT-1" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_ux_evaluator_handles_none_like_attributes():
+    """
+    Verifies that malformed attributes that parse as None do not crash the evaluator.
+    """
+    html = """<!DOCTYPE html>
+<html>
+<head>
+  <title>Example UX</title>
+  <meta name="viewport" content>
+</head>
+<body>
+  <nav id>
+    <a href="/example" style>Example</a>
+  </nav>
+</body>
+</html>
+"""
+    evaluator = UxEvaluator()
+    result = await evaluator.evaluate(html, "https://example.com/ux-none-attrs")
+
+    assert isinstance(result, EvaluationResult)
+    issue_ids = [issue.id for issue in result.issues]
+    assert "R-UX-VIEWPORT-WIDTH" in issue_ids

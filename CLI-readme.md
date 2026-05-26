@@ -2,6 +2,8 @@
 
 This repository exposes one primary command: `python main.py evaluate`.
 
+The runtime identity and docs surface are aligned with the `v1.2.2` release train.
+
 ## Quick Start
 
 ```bash
@@ -23,6 +25,15 @@ python main.py evaluate --watch
 python main.py evaluate --search-semantic "broken link audit"
 ```
 
+## Public Audit Wrapper
+
+Use the wrapper script for the public audit flow with the repo defaults.
+
+```bash
+./scripts/run_public_audit.sh
+TARGET=www.example.com ./scripts/run_public_audit.sh
+```
+
 ## Options
 
 | Flag | Default | Description |
@@ -40,10 +51,10 @@ python main.py evaluate --search-semantic "broken link audit"
 | `--recon-auto` | `false` | Apply the recon-recommended scraper posture automatically. |
 | `--http2` | `false` | Enable HTTP/2 for outgoing requests. |
 | `--engine` | `http` | Scraping engine: `http`, `fast`, `stealth`, or `mcp`. |
-| `--budget` | unset | JSON budget file for performance threshold enforcement. |
 | `--check-links` | `false` | Scan outbound and same-domain links for broken targets. |
 | `--check-api` | `false` | Probe common Drupal REST and JSON:API routes. |
 | `--persist` | `false` | Store runs and findings in DuckDB and LanceDB. |
+| `--budget` | unset | JSON performance budget file for post-audit thresholds. |
 | `--watch` | `false` | Start the workspace watcher loop instead of evaluating a URL. |
 | `--search-semantic` | unset | Search historical audit data using semantic similarity. |
 
@@ -63,9 +74,13 @@ The CLI also reads these environment variables for CI workflows:
 
 Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they rely on those variables as the CI contract.
 
-`--engine mcp` now requires a pinned executable or versioned package. The
-mutable `npx -y @modelcontextprotocol/server-playwright` download path is
-disabled by default.
+`--engine mcp` requires a pinned executable or versioned package. The mutable
+`npx -y @modelcontextprotocol/server-playwright` download path is disabled.
+
+## Release Notes
+
+- The `v1.2.2` docs refresh keeps the CLI contract, environment variable surface, and report outputs aligned.
+- The canonical release history lives in `changelog.md`; `chagelog.md` remains the alias entry point for the same notes.
 
 ## Output
 

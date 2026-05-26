@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Branch Coverage](https://img.shields.io/badge/coverage-%E2%89%A564%25-brightgreen.svg)](pyproject.toml)
 
-An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories. It also exposes agent-friendly report formats and CI contracts for orchestration workflows.
+An enterprise-grade, high-performance asynchronous diagnostic audit tool and crawler for Drupal and PHP sites, checking technical compliance, security governance, accessibility, and modern search engine optimization categories. It also exposes agent-friendly report formats and CI contracts for orchestration workflows. This release train is aligned to `v1.2.2`.
 
 ---
 
@@ -13,7 +13,8 @@ An enterprise-grade, high-performance asynchronous diagnostic audit tool and cra
 
 - [CLI Reference](CLI-readme.md)
 - [Architecture Guide](docs/architecture.md)
-- [Changelog](changelog.md)
+- [Changelog](changelog.md) — current release `v1.2.2`
+- [Chagelog](chagelog.md) — alias entry for the same release history
 - [Contributing Guide](CONTRIBUTING.md)
 
 ---
@@ -56,6 +57,7 @@ Operational controls extend the main crawl/evaluate loop:
 - `utils/crawl_diff.py` compares canonical saved reports and runs to surface regressions and improvements.
 - `utils/ontology.py` buffers semantic-store writes during the crawl and flushes them in batches to keep the hot path lighter.
 - `utils/agent_card.py` publishes a stable manifest for orchestration consumers.
+- Normalized report payloads (`target_url`, `average_score`, `total_issues`, `domains`) are now reused by all report renderers (`json`, `html`, `llm`, `geo-xml`).
 
 ---
 
@@ -154,6 +156,18 @@ python main.py evaluate "https://example.com" --engine stealth
 python main.py evaluate "https://example.com" --recon --recon-auto
 ```
 
+### Public Audit Wrapper
+
+Use the checked-in wrapper for a public audit profile:
+
+```bash
+./scripts/run_public_audit.sh
+TARGET=www.example.com ./scripts/run_public_audit.sh
+TARGET=www.example.com OUT_DIR=reports/custom/example.com ENGINE=stealth CRAWL_DEPTH=2 MAX_URLS=250 ./scripts/run_public_audit.sh
+```
+
+The wrapper defaults to `https://www.example.com`, normalizes bare targets such as `www.example.com` to HTTPS, and passes the target straight through to the audit CLI. Use `PYTHON=...` when you need a different interpreter.
+
 ### Command Line Options
 
 | Argument / Option | Default | Description |
@@ -174,6 +188,7 @@ python main.py evaluate "https://example.com" --recon --recon-auto
 | `--budget` | `None` | Path to JSON config specifying strict Core Web Vitals performance budgets. |
 | `--check-links` | `False` | Performs concurrent HTTP status validations on all outbound/same-domain links. |
 | `--check-api` | `False` | Asynchronously audits default Drupal REST & JSON:API directories for sensitive exposures. |
+| `--persist` | `False` | Persist audit runs, pages, and findings for historical lookup and diffing. |
 
 ### CI and Environment Variables
 
@@ -183,7 +198,7 @@ The CLI also accepts environment-backed inputs for CI pipelines:
 - `SLB_AUTH_TOKEN`: bearer token passed through to authenticated CI runs.
 - `SLB_AUDITS`: comma-separated evaluator subset used by CI recipes.
 - `SLB_FAIL_ON_CRITICAL`: fail the job when any critical finding is detected.
-- `SLB_MCP_COMMAND`: pinned MCP executable or package command for `--engine mcp`.
+- `SLB_MCP_COMMAND`: pinned executable path when using `--engine mcp`.
 - `SLB_MCP_ARGS`: additional args for the pinned MCP command.
 - `SLB_MCP_HANDSHAKE_TIMEOUT`: timeout in seconds for the MCP handshake.
 - `SLB_MCP_TOOL_TIMEOUT`: timeout in seconds for MCP tool calls and I/O drains.

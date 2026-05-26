@@ -156,10 +156,13 @@ async def run_evaluation(
         renderer = PlaywrightRenderer()
     
     # 2. Crawl Target Site
+    from utils.ssrf_guard import SSRFHTTPTransport
+    guard = SSRFGuard(allow_private=allow_private)
+    transport = SSRFHTTPTransport(guard=guard, http2=http2)
     client = httpx.AsyncClient(
+        transport=transport,
         timeout=config.REQUEST_TIMEOUT,
         headers=config.build_request_headers(auth_token),
-        http2=http2,
     )
     try:
         if crawl_depth > 0 or check_links:
@@ -227,7 +230,7 @@ async def run_evaluation(
                                 severity=issue.severity,
                                 message=issue.message,
                                 location=issue.location,
-                                remedy=issue.remedy
+                                remedy=issue.remedy,
                             )
                     updated_r = replace(r, issues=tuple(updated_issues))
                     all_eval_results[mod.domain].append(updated_r)
@@ -281,6 +284,8 @@ async def run_evaluation(
         close_result = client.aclose()
         if inspect.isawaitable(close_result):
             await close_result
+        from utils.browser_pool import BrowserPool
+        await BrowserPool.get_instance().close()
 
     return consolidated_results
 
@@ -372,10 +377,14 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
     """
     report_data = build_report_payload(url, results)
         
-    os.makedirs(os.path.dirname(filepath) or '.', exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(report_data, f, indent=2)
-    console.print(f"[bold green]✔ Diagnostic JSON report written to: {filepath}[/bold green]")
+    try:
+        if os.path.dirname(filepath):
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, indent=2)
+        console.print(f"[bold green]✔ Diagnostic JSON report written to: {filepath}[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Error: Failed to save JSON report to {filepath}: {str(e)}[/bold red]")
 
 @app.command()
 def evaluate(
@@ -462,11 +471,11 @@ def evaluate(
         console.print(f"[red]{str(e)}[/red]")
         raise typer.Exit(code=1)
         
-    if render or engine.lower().strip() in ["stealth", "mcp"]:
+    if render or engine.lower().strip() == "stealth":
         from modules.renderer import PLAYWRIGHT_AVAILABLE
         if not PLAYWRIGHT_AVAILABLE:
             console.print(f"[bold red]Error: Playwright is not installed in the environment.[/bold red]")
-            console.print(f"Scraping/rendering mode '{engine if not render else 'render'}' requires the 'playwright' package.")
+            console.print(f"Scraping mode '{engine if not render else 'render'}' requires the 'playwright' package.")
             console.print(f"To install it, run: [bold green]pip install playwright && playwright install[/bold green]")
             raise typer.Exit(code=1)
         
