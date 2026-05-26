@@ -2,7 +2,7 @@
 
 This repository exposes one primary command: `python main.py evaluate`.
 
-The runtime identity and docs surface are aligned with the `v1.2.2` release train.
+The runtime identity and docs surface are aligned with the `v1.2.3` release train.
 
 ## Quick Start
 
@@ -79,7 +79,7 @@ Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab C
 
 ## Release Notes
 
-- The `v1.2.2` docs refresh keeps the CLI contract, environment variable surface, and report outputs aligned.
+- The `v1.2.3` release hardens the public audit wrapper, removes external seed probing, and keeps the CLI contract, environment variable surface, and report outputs aligned.
 - The canonical release history lives in `changelog.md`; `chagelog.md` remains the alias entry point for the same notes.
 
 ## Output

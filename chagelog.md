@@ -1,13 +1,14 @@
 This repo keeps the canonical release history in [changelog.md](changelog.md).
 
-## Unreleased
+## v1.2.3
 
-- Added `scripts/run_public_audit.sh` as a convenience wrapper for a public audit profile. It defaults to `https://www.example.com` and accepts `TARGET=...` style overrides.
-- Documented the env-style invocation so operators can run `TARGET=www.example.com ./scripts/run_public_audit.sh` without editing the script.
-- Hardened SEO and UX attribute handling so empty and `None`-like `href`, `content`, `style`, `class`, and `id` values no longer crash evaluation. Malformed markup now turns into normal findings instead of exceptions.
+- Public audit hardening, docs sync, and release sanity checks.
+- The wrapper now hands targets straight through to the SSRF-guarded flow and keeps MCP pinning explicit.
+- Validation passed on the release gate: 72 tests, 72.02% coverage, dependency validation, and a clean latest-commit secret scan.
 
 ## Recent Releases
 
+- v1.2.3: public audit hardening, docs sync, and release sanity checks.
 - v1.2.2: docs refresh, runtime identity alignment, and release sanity checks.
 - v1.2.1: resilience, persistence batching, and release-validated external audit run coverage.
 - [CLI ref](CLI-readme.md)

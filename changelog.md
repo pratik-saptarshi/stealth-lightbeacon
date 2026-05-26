@@ -2,13 +2,21 @@
 
 ## Unreleased
 
+## v1.2.3
+
 ### Wrapper and Hardening
 
 - Added `scripts/run_public_audit.sh` as a convenience wrapper for a public audit profile. It defaults to `https://www.example.com` and accepts `TARGET=...` style overrides.
 - Documented the env-style invocation so operators can run `TARGET=www.example.com ./scripts/run_public_audit.sh` without editing the script.
 - Hardened SEO and UX attribute handling so empty and `None`-like `href`, `content`, `style`, `class`, and `id` values no longer crash evaluation. Malformed markup now turns into normal findings instead of exceptions.
 - Removed preflight seed probing from the public audit wrapper so the target is handed straight to the SSRF-guarded audit flow.
-- Stripped internal review artifacts and local-path references from the public docs surface.
+- Refreshed the README, CLI reference, architecture guide, and alias docs so the release train stays aligned across the public docs surface.
+
+### Validation and Sanity
+
+- Ran `.venv/bin/python -m pytest` successfully: 72 tests passed with 72.02% total coverage and one existing warning from `tests/test_ux.py::test_ux_evaluator_valid`.
+- Ran `.venv/bin/python scripts/validate_dependencies.py` successfully against the live package indices.
+- Performed a latest-commit secret sanity scan on the HEAD diff and found no obvious secret material.
 
 ## v1.2.2
 

@@ -16,8 +16,8 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15  # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "StealthLightbeacon/1.2.2 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
-        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.2)"
+        "StealthLightbeacon/1.2.3 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.3)"
     )
 }
 
