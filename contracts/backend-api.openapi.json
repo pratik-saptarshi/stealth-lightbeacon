@@ -49,19 +49,14 @@
                     "supportsRemote": false
                   },
                   "evaluationProfiles": [
-                    "seo",
-                    "performance",
-                    "accessibility",
-                    "aeo-geo",
-                    "ux",
-                    "security"
+                    "baseline",
+                    "deep",
+                    "export"
                   ],
                   "outputFormats": [
                     "json",
-                    "html",
-                    "both",
-                    "llm",
-                    "geo-xml"
+                    "markdown",
+                    "html"
                   ],
                   "supportsRecon": true,
                   "supportsArtifacts": true

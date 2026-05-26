@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
+from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
 from contracts.backend_api import CONTRACT_DESCRIPTION, build_openapi_document
-from utils.agent_card import build_agent_card
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,13 +42,12 @@ def test_generated_contract_has_required_desktop_paths_and_schemas():
 
 def test_capabilities_and_recon_examples_track_existing_backend_seams():
     doc = build_openapi_document()
-    card = build_agent_card()
 
     capabilities_example = doc["paths"]["/capabilities"]["get"]["responses"]["200"][
         "content"
     ]["application/json"]["example"]
-    assert capabilities_example["evaluationProfiles"] == card["audits"]
-    assert capabilities_example["outputFormats"] == card["outputs"]["formats"]
+    assert capabilities_example["evaluationProfiles"] == list(SUPPORTED_PROFILES)
+    assert capabilities_example["outputFormats"] == list(SUPPORTED_OUTPUT_FORMATS)
     assert capabilities_example["supportsRecon"] is True
     assert capabilities_example["supportsArtifacts"] is True
 
