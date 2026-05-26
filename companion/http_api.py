@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict
@@ -17,6 +19,27 @@ from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_docume
 SERVICE_NAME = "stealth-lightbeacon-api"
 
 
+class CompanionHealth:
+    """Tracks companion readiness for desktop lifecycle management."""
+
+    def __init__(
+        self,
+        *,
+        startup_delay_ms: int = 0,
+        degraded_reason: str | None = None,
+    ) -> None:
+        self.started_at = time.monotonic()
+        self.startup_delay_ms = max(0, startup_delay_ms)
+        self.degraded_reason = (degraded_reason or "").strip() or None
+
+    def status(self) -> str:
+        if time.monotonic() < self.started_at + (self.startup_delay_ms / 1000):
+            return "booting"
+        if self.degraded_reason:
+            return "degraded"
+        return "ok"
+
+
 class CompanionApi:
     """Pure route dispatcher for the desktop companion surface."""
 
@@ -24,13 +47,15 @@ class CompanionApi:
         self,
         base_url: str,
         job_manager: EvaluationJobManager | None = None,
+        health: CompanionHealth | None = None,
     ) -> None:
         self.base_url = base_url
         self.job_manager = job_manager or DEFAULT_JOB_MANAGER
+        self.health = health or CompanionHealth()
 
     def health_response(self) -> Dict[str, Any]:
         return {
-            "status": "ok",
+            "status": self.health.status(),
             "service": SERVICE_NAME,
             "apiVersion": API_VERSION,
             "appVersion": APP_VERSION,
@@ -138,11 +163,23 @@ class CompanionServer(ThreadingHTTPServer):
 
     daemon_threads = True
 
-    def __init__(self, server_address: tuple[str, int]) -> None:
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        *,
+        startup_delay_ms: int = 0,
+        degraded_reason: str | None = None,
+    ) -> None:
         super().__init__(server_address, CompanionRequestHandler)
         host, port = self.server_address
         self.base_url = f"http://{host}:{port}"
-        self.api = CompanionApi(base_url=self.base_url)
+        self.api = CompanionApi(
+            base_url=self.base_url,
+            health=CompanionHealth(
+                startup_delay_ms=startup_delay_ms,
+                degraded_reason=degraded_reason,
+            ),
+        )
 
 
 class CompanionRequestHandler(BaseHTTPRequestHandler):
@@ -221,8 +258,37 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8000) -> CompanionServer:
-    return CompanionServer((host, port))
+def _startup_delay_ms_from_env() -> int:
+    raw = os.getenv("SLB_COMPANION_STARTUP_DELAY_MS", "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
+def _degraded_reason_from_env() -> str | None:
+    raw = os.getenv("SLB_COMPANION_DEGRADED_REASON", "").strip()
+    return raw or None
+
+
+def create_server(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    *,
+    startup_delay_ms: int | None = None,
+    degraded_reason: str | None = None,
+) -> CompanionServer:
+    return CompanionServer(
+        (host, port),
+        startup_delay_ms=(
+            _startup_delay_ms_from_env() if startup_delay_ms is None else startup_delay_ms
+        ),
+        degraded_reason=(
+            _degraded_reason_from_env() if degraded_reason is None else degraded_reason
+        ),
+    )
 
 
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
