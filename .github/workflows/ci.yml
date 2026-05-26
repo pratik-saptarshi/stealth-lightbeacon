@@ -46,3 +46,8 @@ jobs:
     - name: Run Test Suite with Coverage Enforcements
       run: |
         pytest -v
+
+    - name: Export Companion OpenAPI Contract
+      run: |
+        python scripts/export_openapi.py
+        git diff --exit-code contracts/backend-api.openapi.json
