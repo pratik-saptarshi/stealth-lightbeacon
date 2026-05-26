@@ -96,3 +96,43 @@ def test_job_manager_exposes_terminal_result_payload():
     assert result["severityCounts"]["warning"] == 1
     assert result["findings"][0]["ruleId"] == "seo-title"
     assert result["findings"][0]["severity"] == "warning"
+
+
+def test_job_manager_exposes_terminal_artifact_descriptors():
+    def fake_executor(request, evaluation_id, output_dir):
+        return JobExecutionOutcome(
+            status="success",
+            exit_state="success",
+            message="Evaluation complete.",
+            result_payload={"target_url": request.target, "average_score": 91.5, "domains": []},
+            artifacts=[
+                {
+                    "name": "normalized-report",
+                    "kind": "normalized_report",
+                    "mediaType": "application/json",
+                    "downloadUrl": None,
+                    "path": f"{output_dir}/report.json",
+                }
+            ],
+        )
+
+    manager = EvaluationJobManager(executor=fake_executor)
+    accepted = manager.submit(sample_request())
+
+    deadline = time.time() + 2
+    while time.time() < deadline:
+        status = manager.get_status(accepted["evaluationId"])
+        if status["terminal"]:
+            break
+        time.sleep(0.02)
+
+    artifacts = manager.get_artifacts(accepted["evaluationId"])
+
+    assert artifacts == [
+        {
+            "name": "normalized-report",
+            "kind": "normalized_report",
+            "mediaType": "application/json",
+            "downloadUrl": None,
+        }
+    ]
