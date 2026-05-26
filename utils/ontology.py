@@ -196,6 +196,19 @@ class OntologyStore:
         else:
             self.vector_store = FallbackVectorStore()
 
+    def _insert_vector_rows(self, rows: list[dict]) -> None:
+        if not rows:
+            return
+        try:
+            self.vector_store.insert(rows)
+            return
+        except Exception:
+            for row in rows:
+                try:
+                    self.vector_store.insert([row])
+                except Exception:
+                    pass
+
     async def _queue_vector_row(self, row: dict, force: bool = False):
         self._vector_buffer.append(row)
         if force or len(self._vector_buffer) >= self._vector_flush_threshold:
@@ -206,14 +219,7 @@ class OntologyStore:
             return
         rows = self._vector_buffer
         self._vector_buffer = []
-        try:
-            self.vector_store.insert(rows)
-        except Exception:
-            for row in rows:
-                try:
-                    self.vector_store.insert([row])
-                except Exception:
-                    pass
+        self._insert_vector_rows(rows)
 
     def _initialize_duckdb_schema(self):
         self.duck_conn.execute("""
@@ -357,7 +363,7 @@ class OntologyStore:
             "url": report_payload.get('target_url', 'unknown'),
             "vector": vector
         }
-        self.vector_store.insert([vector_row])
+        self._insert_vector_rows([vector_row])
 
     async def get_run_report(self, run_id: str) -> dict:
         row = self.duck_conn.execute("SELECT report_json FROM audit_runs WHERE run_id = ?", [run_id]).fetchone()
@@ -405,6 +411,10 @@ class OntologyStore:
         }
 
     def close(self):
+        if self._vector_buffer:
+            rows = self._vector_buffer
+            self._vector_buffer = []
+            self._insert_vector_rows(rows)
         try:
             self.duck_conn.close()
         except Exception:

@@ -43,7 +43,7 @@ The current repo state validates the first three architecture phases.
 |---|---|---|---|---|---|---|
 | P3-1 | Phase 3 | B/E/A/D/S | Persistence still writes page/finding/run records inline during evaluation, so large audits can spend avoidable time in storage and vector work. | Move ontology ingestion to a bounded queue/worker path, keep a small-job synchronous fast path, and preserve ordered finalization of the run report. | `pytest -q -o addopts="" tests/test_ontology.py tests/test_performance_budget.py tests/integration/test_full_pipeline.py`; `pytest -q -o addopts="" tests --ignore=tests/integration`; `pytest -q -o addopts="" tests/integration`; full-suite coverage run with `--fail-under=64`. | Open |
 | P3-2 | Phase 3 | B/E/A/D/S | Queue flush and storage-failure handling are not yet explicitly exercised for partial failure, retry, or backpressure behavior. | Add regression tests and guardrails for vector-store flush failures, bounded queue pressure, and partial persistence rollback/fallback semantics. | New unit coverage for `utils/ontology.py` failure branches; `pytest -q -o addopts="" tests/test_ontology.py`; full-suite run with coverage report. | Open |
-| P4-1 | Phase 4 | B/E/A/D/S | Release metadata must stay synchronized with the docs surface, CI recipes, and the generated BOM. | Keep canonical docs and alias shims aligned, treat `utils/update_bom.py` as the source of truth for `bill-of-material.md`, and keep CI recipes archiving both report artifacts. | `pytest -q -o addopts="" tests/test_cli_contract.py tests/test_report_formats.py tests/test_ci_recipes.py`; `python3 utils/update_bom.py`; `git diff --check`; full-suite coverage run. | Open |
+| P4-1 | Phase 4 | B/E/A/D/S | Release metadata must stay synchronized with the docs surface, CI recipes, alias shims, and the generated BOM. | Keep canonical docs and all alias shims aligned, treat `utils/update_bom.py` as the source of truth for `bill-of-material.md`, and keep CI recipes archiving both report artifacts. | `pytest -q -o addopts="" tests/test_cli_contract.py tests/test_report_formats.py tests/test_ci_recipes.py`; `python3 utils/update_bom.py`; `git diff --check`; full-suite coverage run. | Open |
 | P4-2 | Phase 4 | B/E/A/D/S | Coverage is still thin on the BOM updater and several fallback/error branches in renderer, watcher, persistence, and scraping helpers. | Add focused unit tests for the low-coverage seams and keep the repository above the 80% coverage target. | `pytest -q -o addopts="" tests/test_report_formats.py tests/test_pagespeed.py tests/test_ontology.py tests/test_watcher.py tests/test_mcp_scraper.py tests/test_stealth_mcp.py`; new `tests/test_update_bom.py`; `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-report=term-missing tests`; `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-fail-under=80 tests`; confirm total coverage remains above 80%. | Open |
 
 ## Prioritized Fix Plan
@@ -99,7 +99,7 @@ Validation gates:
 - Unit slice: 90 passed, 1 skipped.
 - Integration slice: 2 passed.
 - Full suite: 92 passed, 1 skipped.
-- Total coverage: 80.12%.
+- Total coverage: last validated at 80.55% on 2026-05-26.
 - Coverage floor: 64% met.
 - Coverage target: 80% met.
 - Lowest-coverage files in the latest run: `modules/aeo_geo.py` 67%, `modules/drupal.py` 68%, `modules/scraping/stealth_mcp.py` 78%, `modules/pagespeed.py` 79%, `modules/html_parser.py` 80%.

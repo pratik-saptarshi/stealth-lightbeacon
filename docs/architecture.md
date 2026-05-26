@@ -86,10 +86,11 @@ The report stage renders JSON, HTML, LLM Markdown, or GEO XML from one normalize
   - Normalizes URLs (stripping query fragments and hashes) and retains only final redirected URLs to avoid duplicate fetches.
 
 ### 🎭 3. Pluggable Scraping strategies (`modules/scraping/`)
-Auditing sophisticated properties requires evading standard anti-bot triggers. The **Scraping Strategy Pattern** isolates fetching workloads:
+When rendered acquisition is required, the **Scraping Strategy Pattern**
+isolates fetching workloads and keeps the acquisition surface swappable:
 - **HttpEngine (Standard):** High-speed, low-footprint direct HTTP client using customized modern browser headers and HTTP/2 transport profiles.
 - **ObscuraEngine (Fast-Path):** Spawns a compiled hermetic Rust static binary `./bin/obscura` via subprocesses to negotiate low-level TLS handshakes, spoofing standard client signatures.
-- **ZendriverEngine (Heavy-Path):** Automated anti-detect Chromium controller powered by Playwright. Intercepts webdriver parameters, emulates system fonts/plugins, overrides WebGL GPU descriptors, and simulates human mouse gestures to defeat zero-day bot challenges.
+- **ZendriverEngine (Heavy-Path):** Automated Chromium controller powered by Playwright. It adjusts browser-like parameters, system fonts, plugins, and WebGL descriptors when rendered acquisition is required.
 - **StealthMcpLayer (Model Context Protocol):** Client wrapper encapsulating queries into standard MCP tool calls (Playwright integration stdio sessions) for autonomous agent orchestrators. It requires an explicitly pinned executable or versioned package via `SLB_MCP_COMMAND` / `SLB_MCP_ARGS`; the mutable runtime-download default is disabled.
 
 ### 🔌 4. Decoupled Diagnostic Plugins (`modules/`)
@@ -122,7 +123,7 @@ The Typer entrypoint in `main.py` exposes a single `evaluate` command with sever
 - `--persist`: Enables DuckDB + LanceDB persistence for runs, pages, and findings.
 - `--render`: Forces rendered DOM auditing through Playwright-backed scraping.
 - `--engine`: Selects the scraping strategy: `http`, `fast`, `stealth`, or `mcp`.
-- `--recon` and `--recon-auto`: Run advisory anti-bot reconnaissance before the crawl and optionally apply the recommended posture automatically.
+- `--recon` and `--recon-auto`: Run advisory reconnaissance before the crawl and optionally apply the recommended posture automatically.
 - `--format`: Selects the output renderer, including `json`, `html`, `both`, `llm`, and `geo-xml`.
 - `--crawl-depth` and `--max-urls`: Control recursive crawl breadth and circuit breaking.
 - `--check-links` and `--check-api`: Enable outbound link checks and Drupal API discovery.
@@ -155,7 +156,7 @@ The repository now validates pinned dependencies before test execution:
 2. `scripts/validate_dependencies.py` calls `piptools compile` against the live PyPI index to catch incompatible pins before merge.
 3. `.github/workflows/ci.yml` installs dependencies with `--extra-index-url https://pypi.org/simple`, validates the lock state, then runs the test suite on Python 3.11.
 4. `pre-commit run dependency-validation --all-files` mirrors the CI check locally so dependency drift is caught early.
-5. The current release notes for `v1.2.4` live in `changelog.md` and the alias docs point to the same history.
+5. The current release notes for `v1.2.4` live in `changelog.md`, and the compatibility aliases point to the same history.
 
 The prioritized remediation roadmap and phase validation gates live in
 [`docs/architecture-beads-plan.md`](docs/architecture-beads-plan.md).

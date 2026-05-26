@@ -25,8 +25,8 @@
 ### Release and Documentation
 
 - Published the `v1.2.2` release train and aligned the runtime identity string so client headers stay in sync with the tagged version.
-- Refreshed the main docs surface (`README`, `CLI-readme`, `docs/architecture`, `chagelog`, and `archotecture`) to keep the release story consistent for humans and automation.
-- Kept the changelog family current so the canonical history and typo-alias entry points point at the same release notes.
+- Refreshed the main docs surface (`README`, `CLI-readme`, `docs/architecture`, and the compatibility alias files) to keep the release story consistent for humans and automation.
+- Kept the changelog family current so the canonical history and compatibility aliases point at the same release notes.
 
 ### Validation and Sanity
 
@@ -58,7 +58,7 @@
 
 ### Quality and Operations
 
-- Expanded docs references (`README`, `CLI-readme`, `docs/architecture`) and kept `chagelog` alignment.
+- Expanded docs references (`README`, `CLI-readme`, `docs/architecture`) and kept the compatibility aliases aligned.
 - Added regression coverage for parser-scoped selector reuse and MCP command configuration behavior.
 ## v1.1.9
 

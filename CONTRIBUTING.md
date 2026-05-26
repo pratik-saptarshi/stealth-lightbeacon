@@ -25,9 +25,7 @@ gates that keep the audit flow and release train aligned.
 
 ## Release Hygiene
 
-- Keep `README.md`, `readme.md`, `CLI-readme.md`, `readme-CLI.md`,
-  `architecture.md`, `docs/architecture.md`, `changelog.md`, and
-  `bill-of-material.md` synchronized.
+- Keep all canonical docs and alias shims synchronized.
 - Do not publish a release until the docs, CI recipes, tests, and BOM all agree
   on the same release train.
 - Treat `SECURITY.md` as the canonical security policy and `security-policy.md`
