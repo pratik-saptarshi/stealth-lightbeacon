@@ -1,10 +1,23 @@
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
-from utils.agent_card import build_agent_card
 
 from companion.http_api import ApiRouteError, CompanionApi
+from companion.jobs import EvaluationJobManager
+from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
 
 
 BASE_URL = "http://127.0.0.1:8000"
+
+
+def sample_request():
+    return {
+        "target": "https://example.com",
+        "profile": "baseline",
+        "outputFormats": ["json", "markdown"],
+        "maxDepth": 2,
+        "maxUrls": 25,
+        "failOnCritical": True,
+        "budgetGate": False,
+    }
 
 
 def test_health_route_returns_contract_fields():
@@ -22,7 +35,6 @@ def test_health_route_returns_contract_fields():
 
 
 def test_capabilities_route_tracks_backend_surface():
-    card = build_agent_card()
     api = CompanionApi(base_url=BASE_URL)
 
     status, payload = api.dispatch("GET", "/capabilities")
@@ -36,8 +48,8 @@ def test_capabilities_route_tracks_backend_surface():
             "apiVersion": API_VERSION,
             "supportsRemote": False,
         },
-        "evaluationProfiles": list(card["audits"]),
-        "outputFormats": list(card["outputs"]["formats"]),
+        "evaluationProfiles": list(SUPPORTED_PROFILES),
+        "outputFormats": list(SUPPORTED_OUTPUT_FORMATS),
         "supportsRecon": True,
         "supportsArtifacts": True,
     }
@@ -67,4 +79,52 @@ def test_unknown_route_returns_structured_api_error():
         "message": "Route not found.",
         "status": 404,
         "details": "/missing",
+    }
+
+
+def test_create_evaluation_route_accepts_request_and_exposes_queued_status():
+    api = CompanionApi(
+        base_url=BASE_URL,
+        job_manager=EvaluationJobManager(auto_start=False),
+    )
+
+    status, accepted = api.dispatch("POST", "/evaluations", body=sample_request())
+
+    assert status == 202
+    assert accepted["status"] == "accepted"
+    assert accepted["evaluationId"]
+    assert accepted["acceptedAt"]
+
+    status_code, evaluation_status = api.dispatch(
+        "GET",
+        f"/evaluations/{accepted['evaluationId']}",
+    )
+
+    assert status_code == 200
+    assert evaluation_status["evaluationId"] == accepted["evaluationId"]
+    assert evaluation_status["status"] == "accepted"
+    assert evaluation_status["stage"] == "queued"
+    assert evaluation_status["terminal"] is False
+
+
+def test_create_evaluation_route_rejects_invalid_profile():
+    api = CompanionApi(
+        base_url=BASE_URL,
+        job_manager=EvaluationJobManager(auto_start=False),
+    )
+    request = sample_request()
+    request["profile"] = "unsupported"
+
+    try:
+        api.dispatch("POST", "/evaluations", body=request)
+    except ApiRouteError as exc:
+        payload = exc.to_payload()
+    else:  # pragma: no cover - defensive branch
+        raise AssertionError("expected ApiRouteError")
+
+    assert payload == {
+        "code": "invalid_request",
+        "message": "Evaluation profile is not supported.",
+        "status": 400,
+        "details": "unsupported",
     }

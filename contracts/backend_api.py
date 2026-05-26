@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict
 
-from utils.agent_card import build_agent_card
+from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
 from utils.recon import ReconRecommendation
 
 API_VERSION = "0.1.0"
@@ -20,7 +20,6 @@ def _ref(name: str) -> Dict[str, str]:
 
 
 def _capabilities_example() -> Dict[str, Any]:
-    card = build_agent_card()
     return {
         "apiMode": {
             "mode": "local",
@@ -29,8 +28,8 @@ def _capabilities_example() -> Dict[str, Any]:
             "apiVersion": API_VERSION,
             "supportsRemote": False,
         },
-        "evaluationProfiles": list(card["audits"]),
-        "outputFormats": list(card["outputs"]["formats"]),
+        "evaluationProfiles": list(SUPPORTED_PROFILES),
+        "outputFormats": list(SUPPORTED_OUTPUT_FORMATS),
         "supportsRecon": True,
         "supportsArtifacts": True,
     }

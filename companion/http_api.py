@@ -9,44 +9,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict
 from urllib.parse import urlparse
 
+from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
+from companion.errors import ApiRouteError
+from companion.jobs import DEFAULT_JOB_MANAGER, EvaluationJobManager
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
-from utils.agent_card import build_agent_card
 
 SERVICE_NAME = "stealth-lightbeacon-api"
-
-
-class ApiRouteError(Exception):
-    """Structured transport error for HTTP responses."""
-
-    def __init__(
-        self,
-        status: int,
-        code: str,
-        message: str,
-        details: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.status = status
-        self.code = code
-        self.message = message
-        self.details = details
-
-    def to_payload(self) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
-            "code": self.code,
-            "message": self.message,
-            "status": self.status,
-        }
-        if self.details is not None:
-            payload["details"] = self.details
-        return payload
 
 
 class CompanionApi:
     """Pure route dispatcher for the desktop companion surface."""
 
-    def __init__(self, base_url: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        job_manager: EvaluationJobManager | None = None,
+    ) -> None:
         self.base_url = base_url
+        self.job_manager = job_manager or DEFAULT_JOB_MANAGER
 
     def health_response(self) -> Dict[str, Any]:
         return {
@@ -57,7 +37,6 @@ class CompanionApi:
         }
 
     def capabilities_response(self) -> Dict[str, Any]:
-        card = build_agent_card()
         return {
             "apiMode": {
                 "mode": "local",
@@ -66,35 +45,67 @@ class CompanionApi:
                 "apiVersion": API_VERSION,
                 "supportsRemote": False,
             },
-            "evaluationProfiles": list(card["audits"]),
-            "outputFormats": list(card["outputs"]["formats"]),
+            "evaluationProfiles": list(SUPPORTED_PROFILES),
+            "outputFormats": list(SUPPORTED_OUTPUT_FORMATS),
             "supportsRecon": True,
             "supportsArtifacts": True,
         }
 
-    def dispatch(self, method: str, path: str) -> tuple[int, Dict[str, Any]]:
+    def dispatch(
+        self,
+        method: str,
+        path: str,
+        body: Dict[str, Any] | None = None,
+    ) -> tuple[int, Dict[str, Any]]:
         normalized_path = path.rstrip("/") or "/"
-        if method != "GET":
-            if normalized_path in {"/health", "/capabilities", "/openapi.json"}:
+
+        if normalized_path == "/health":
+            if method != "GET":
                 raise ApiRouteError(
                     status=HTTPStatus.METHOD_NOT_ALLOWED,
                     code="method_not_allowed",
                     message="Route does not support that HTTP method.",
                     details=f"{method} {normalized_path}",
                 )
-            raise ApiRouteError(
-                status=HTTPStatus.NOT_FOUND,
-                code="not_found",
-                message="Route not found.",
-                details=normalized_path,
-            )
-
-        if normalized_path == "/health":
             return HTTPStatus.OK, self.health_response()
         if normalized_path == "/capabilities":
+            if method != "GET":
+                raise ApiRouteError(
+                    status=HTTPStatus.METHOD_NOT_ALLOWED,
+                    code="method_not_allowed",
+                    message="Route does not support that HTTP method.",
+                    details=f"{method} {normalized_path}",
+                )
             return HTTPStatus.OK, self.capabilities_response()
         if normalized_path == "/openapi.json":
+            if method != "GET":
+                raise ApiRouteError(
+                    status=HTTPStatus.METHOD_NOT_ALLOWED,
+                    code="method_not_allowed",
+                    message="Route does not support that HTTP method.",
+                    details=f"{method} {normalized_path}",
+                )
             return HTTPStatus.OK, build_openapi_document()
+        if normalized_path == "/evaluations":
+            if method != "POST":
+                raise ApiRouteError(
+                    status=HTTPStatus.METHOD_NOT_ALLOWED,
+                    code="method_not_allowed",
+                    message="Route does not support that HTTP method.",
+                    details=f"{method} {normalized_path}",
+                )
+            return HTTPStatus.ACCEPTED, self.job_manager.submit(body or {})
+
+        segments = [segment for segment in normalized_path.split("/") if segment]
+        if len(segments) == 2 and segments[0] == "evaluations":
+            if method != "GET":
+                raise ApiRouteError(
+                    status=HTTPStatus.METHOD_NOT_ALLOWED,
+                    code="method_not_allowed",
+                    message="Route does not support that HTTP method.",
+                    details=f"{method} {normalized_path}",
+                )
+            return HTTPStatus.OK, self.job_manager.get_status(segments[1])
 
         raise ApiRouteError(
             status=HTTPStatus.NOT_FOUND,
@@ -138,8 +149,15 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
 
     def _handle(self, method: str) -> None:
         parsed = urlparse(self.path)
+        body = None
         try:
-            status, payload = self.server.api.dispatch(method=method, path=parsed.path)
+            if method in {"POST", "PUT"}:
+                body = self._read_json_body()
+            status, payload = self.server.api.dispatch(
+                method=method,
+                path=parsed.path,
+                body=body,
+            )
         except ApiRouteError as exc:
             self._send_json(exc.status, exc.to_payload())
             return
@@ -155,6 +173,26 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(status, payload)
+
+    def _read_json_body(self) -> Dict[str, Any]:
+        content_length = int(self.headers.get("Content-Length", "0") or 0)
+        raw = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ApiRouteError(
+                status=HTTPStatus.BAD_REQUEST,
+                code="invalid_request",
+                message="Request body must be valid JSON.",
+                details=str(exc),
+            ) from exc
+        if not isinstance(payload, dict):
+            raise ApiRouteError(
+                status=HTTPStatus.BAD_REQUEST,
+                code="invalid_request",
+                message="Request body must be a JSON object.",
+            )
+        return payload
 
     def _send_json(self, status: int, payload: Dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
