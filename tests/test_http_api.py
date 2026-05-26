@@ -1,6 +1,11 @@
+import json
+import threading
+import time
+from urllib.request import urlopen
+
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
 
-from companion.http_api import ApiRouteError, CompanionApi
+from companion.http_api import ApiRouteError, CompanionApi, CompanionHealth, create_server
 from companion.jobs import EvaluationJobManager
 from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
 
@@ -32,6 +37,32 @@ def test_health_route_returns_contract_fields():
         "apiVersion": API_VERSION,
         "appVersion": APP_VERSION,
     }
+
+
+def test_health_route_reports_booting_until_startup_delay_elapses():
+    api = CompanionApi(
+        base_url=BASE_URL,
+        health=CompanionHealth(startup_delay_ms=25),
+    )
+
+    _, booting = api.dispatch("GET", "/health")
+    assert booting["status"] == "booting"
+
+    time.sleep(0.03)
+
+    _, healthy = api.dispatch("GET", "/health")
+    assert healthy["status"] == "ok"
+
+
+def test_health_route_reports_degraded_state_after_startup():
+    api = CompanionApi(
+        base_url=BASE_URL,
+        health=CompanionHealth(degraded_reason="fixture"),
+    )
+
+    _, payload = api.dispatch("GET", "/health")
+
+    assert payload["status"] == "degraded"
 
 
 def test_capabilities_route_tracks_backend_surface():
@@ -172,3 +203,20 @@ def test_artifacts_route_rejects_non_terminal_evaluations():
         "status": 409,
         "details": accepted["evaluationId"],
     }
+
+
+def test_companion_server_serves_health_on_loopback():
+    server = create_server(host="127.0.0.1", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"{server.base_url}/health", timeout=1) as response:
+            assert response.status == 200
+            payload = json.loads(response.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        thread.join(timeout=1)
+        server.server_close()
+
+    assert payload["status"] == "ok"
+    assert payload["service"] == "stealth-lightbeacon-api"
