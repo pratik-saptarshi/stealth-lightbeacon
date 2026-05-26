@@ -10,6 +10,8 @@ from utils.recon import ReconRecommendation
 
 API_VERSION = "0.1.0"
 APP_VERSION = "1.2.2"
+MINIMUM_DESKTOP_VERSION = "0.1.0"
+RECOMMENDED_DESKTOP_VERSION = "0.1.0"
 CONTRACT_DESCRIPTION = (
     "Generated backend companion contract for Stealth Lightbeacon desktop integration."
 )
@@ -32,6 +34,20 @@ def _capabilities_example() -> Dict[str, Any]:
         "outputFormats": list(SUPPORTED_OUTPUT_FORMATS),
         "supportsRecon": True,
         "supportsArtifacts": True,
+    }
+
+
+def _health_example() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "stealth-lightbeacon-api",
+        "apiVersion": API_VERSION,
+        "appVersion": APP_VERSION,
+        "authRequired": False,
+        "compatibility": {
+            "minimumDesktopVersion": MINIMUM_DESKTOP_VERSION,
+            "recommendedDesktopVersion": RECOMMENDED_DESKTOP_VERSION,
+        },
     }
 
 
@@ -74,7 +90,10 @@ def build_openapi_document() -> Dict[str, Any]:
                         "200": {
                             "description": "Backend health status",
                             "content": {
-                                "application/json": {"schema": _ref("HealthResponse")}
+                                "application/json": {
+                                    "schema": _ref("HealthResponse"),
+                                    "example": _health_example(),
+                                }
                             },
                         }
                     },
@@ -93,6 +112,19 @@ def build_openapi_document() -> Dict[str, Any]:
                                 }
                             },
                         }
+                        ,
+                        "401": {
+                            "description": "Remote API auth required",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "409": {
+                            "description": "Desktop client is incompatible",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
                     },
                 }
             },
@@ -118,6 +150,18 @@ def build_openapi_document() -> Dict[str, Any]:
                         },
                         "400": {
                             "description": "Invalid request",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "401": {
+                            "description": "Remote API auth required",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "409": {
+                            "description": "Desktop client is incompatible",
                             "content": {
                                 "application/json": {"schema": _ref("ApiError")}
                             },
@@ -151,6 +195,18 @@ def build_openapi_document() -> Dict[str, Any]:
                                 "application/json": {"schema": _ref("ApiError")}
                             },
                         },
+                        "401": {
+                            "description": "Remote API auth required",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "409": {
+                            "description": "Desktop client is incompatible",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
                     },
                 }
             },
@@ -173,7 +229,19 @@ def build_openapi_document() -> Dict[str, Any]:
                                     "schema": _ref("EvaluationResultResponse")
                                 }
                             },
-                        }
+                        },
+                        "401": {
+                            "description": "Remote API auth required",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "409": {
+                            "description": "Desktop client is incompatible",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
                     },
                 }
             },
@@ -199,7 +267,19 @@ def build_openapi_document() -> Dict[str, Any]:
                                     }
                                 }
                             },
-                        }
+                        },
+                        "401": {
+                            "description": "Remote API auth required",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
+                        "409": {
+                            "description": "Desktop client is incompatible",
+                            "content": {
+                                "application/json": {"schema": _ref("ApiError")}
+                            },
+                        },
                     },
                 }
             },
@@ -246,12 +326,32 @@ def build_openapi_document() -> Dict[str, Any]:
                 "HealthResponse": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["status", "service", "apiVersion"],
+                    "required": [
+                        "status",
+                        "service",
+                        "apiVersion",
+                        "authRequired",
+                        "compatibility",
+                    ],
                     "properties": {
                         "status": {"type": "string"},
                         "service": {"type": "string"},
                         "apiVersion": {"type": "string"},
                         "appVersion": {"type": "string"},
+                        "authRequired": {"type": "boolean"},
+                        "compatibility": _ref("CompatibilityResponse"),
+                    },
+                },
+                "CompatibilityResponse": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "minimumDesktopVersion",
+                        "recommendedDesktopVersion",
+                    ],
+                    "properties": {
+                        "minimumDesktopVersion": {"type": "string"},
+                        "recommendedDesktopVersion": {"type": "string"},
                     },
                 },
                 "ApiModeResponse": {

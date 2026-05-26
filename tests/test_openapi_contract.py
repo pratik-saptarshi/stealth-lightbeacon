@@ -27,6 +27,7 @@ def test_generated_contract_has_required_desktop_paths_and_schemas():
     schemas = doc["components"]["schemas"]
     required = {
         "HealthResponse",
+        "CompatibilityResponse",
         "CapabilitiesResponse",
         "CreateEvaluationRequest",
         "CreateEvaluationResponse",
@@ -42,6 +43,12 @@ def test_generated_contract_has_required_desktop_paths_and_schemas():
 
 def test_capabilities_and_recon_examples_track_existing_backend_seams():
     doc = build_openapi_document()
+
+    health_example = doc["paths"]["/health"]["get"]["responses"]["200"]["content"][
+        "application/json"
+    ]["example"]
+    assert health_example["authRequired"] is False
+    assert health_example["compatibility"]["minimumDesktopVersion"] == "0.1.0"
 
     capabilities_example = doc["paths"]["/capabilities"]["get"]["responses"]["200"][
         "content"

@@ -36,6 +36,11 @@ def test_health_route_returns_contract_fields():
         "service": "stealth-lightbeacon-api",
         "apiVersion": API_VERSION,
         "appVersion": APP_VERSION,
+        "authRequired": False,
+        "compatibility": {
+            "minimumDesktopVersion": "0.1.0",
+            "recommendedDesktopVersion": "0.1.0",
+        },
     }
 
 
@@ -68,7 +73,11 @@ def test_health_route_reports_degraded_state_after_startup():
 def test_capabilities_route_tracks_backend_surface():
     api = CompanionApi(base_url=BASE_URL)
 
-    status, payload = api.dispatch("GET", "/capabilities")
+    status, payload = api.dispatch(
+        "GET",
+        "/capabilities",
+        headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+    )
 
     assert status == 200
     assert payload == {
@@ -83,6 +92,53 @@ def test_capabilities_route_tracks_backend_surface():
         "outputFormats": list(SUPPORTED_OUTPUT_FORMATS),
         "supportsRecon": True,
         "supportsArtifacts": True,
+    }
+
+
+def test_capabilities_route_requires_remote_api_auth_when_configured():
+    api = CompanionApi(
+        base_url=BASE_URL,
+        api_auth_token="secret-token",
+    )
+
+    try:
+        api.dispatch(
+            "GET",
+            "/capabilities",
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+        )
+    except ApiRouteError as exc:
+        payload = exc.to_payload()
+    else:  # pragma: no cover - defensive branch
+        raise AssertionError("expected ApiRouteError")
+
+    assert payload == {
+        "code": "unauthorized",
+        "message": "Remote API auth required.",
+        "status": 401,
+        "details": "SLB_API_AUTH_TOKEN",
+    }
+
+
+def test_capabilities_route_rejects_incompatible_desktop_versions():
+    api = CompanionApi(base_url=BASE_URL)
+
+    try:
+        api.dispatch(
+            "GET",
+            "/capabilities",
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.0.1"},
+        )
+    except ApiRouteError as exc:
+        payload = exc.to_payload()
+    else:  # pragma: no cover - defensive branch
+        raise AssertionError("expected ApiRouteError")
+
+    assert payload == {
+        "code": "incompatible_client",
+        "message": "Desktop version is not supported by this backend.",
+        "status": 409,
+        "details": "0.0.1",
     }
 
 
@@ -119,7 +175,12 @@ def test_create_evaluation_route_accepts_request_and_exposes_queued_status():
         job_manager=EvaluationJobManager(auto_start=False),
     )
 
-    status, accepted = api.dispatch("POST", "/evaluations", body=sample_request())
+    status, accepted = api.dispatch(
+        "POST",
+        "/evaluations",
+        body=sample_request(),
+        headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+    )
 
     assert status == 202
     assert accepted["status"] == "accepted"
@@ -129,6 +190,7 @@ def test_create_evaluation_route_accepts_request_and_exposes_queued_status():
     status_code, evaluation_status = api.dispatch(
         "GET",
         f"/evaluations/{accepted['evaluationId']}",
+        headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
     )
 
     assert status_code == 200
@@ -147,7 +209,12 @@ def test_create_evaluation_route_rejects_invalid_profile():
     request["profile"] = "unsupported"
 
     try:
-        api.dispatch("POST", "/evaluations", body=request)
+        api.dispatch(
+            "POST",
+            "/evaluations",
+            body=request,
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+        )
     except ApiRouteError as exc:
         payload = exc.to_payload()
     else:  # pragma: no cover - defensive branch
@@ -166,10 +233,19 @@ def test_result_route_rejects_non_terminal_evaluations():
         base_url=BASE_URL,
         job_manager=EvaluationJobManager(auto_start=False),
     )
-    _, accepted = api.dispatch("POST", "/evaluations", body=sample_request())
+    _, accepted = api.dispatch(
+        "POST",
+        "/evaluations",
+        body=sample_request(),
+        headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+    )
 
     try:
-        api.dispatch("GET", f"/evaluations/{accepted['evaluationId']}/result")
+        api.dispatch(
+            "GET",
+            f"/evaluations/{accepted['evaluationId']}/result",
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+        )
     except ApiRouteError as exc:
         payload = exc.to_payload()
     else:  # pragma: no cover - defensive branch
@@ -188,10 +264,19 @@ def test_artifacts_route_rejects_non_terminal_evaluations():
         base_url=BASE_URL,
         job_manager=EvaluationJobManager(auto_start=False),
     )
-    _, accepted = api.dispatch("POST", "/evaluations", body=sample_request())
+    _, accepted = api.dispatch(
+        "POST",
+        "/evaluations",
+        body=sample_request(),
+        headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+    )
 
     try:
-        api.dispatch("GET", f"/evaluations/{accepted['evaluationId']}/artifacts")
+        api.dispatch(
+            "GET",
+            f"/evaluations/{accepted['evaluationId']}/artifacts",
+            headers={"X-Stealth-Lightbeacon-Desktop-Version": "0.1.0"},
+        )
     except ApiRouteError as exc:
         payload = exc.to_payload()
     else:  # pragma: no cover - defensive branch
