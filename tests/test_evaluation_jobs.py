@@ -46,3 +46,53 @@ def test_job_manager_transitions_from_accepted_to_terminal_status():
     assert terminal["status"] == "success"
     assert terminal["exitState"] == "success"
     assert terminal["progressPercent"] == 100
+
+
+def test_job_manager_exposes_terminal_result_payload():
+    def fake_executor(request, evaluation_id, output_dir):
+        return JobExecutionOutcome(
+            status="success",
+            exit_state="success",
+            message="Evaluation complete.",
+            result_payload={
+                "target_url": request.target,
+                "average_score": 91.5,
+                "total_issues": 2,
+                "domains": [
+                    {
+                        "name": "Technical SEO",
+                        "score": 9.0,
+                        "issues": [
+                            {
+                                "id": "seo-title",
+                                "severity": "warning",
+                                "message": "Title is too short.",
+                                "location": "/",
+                                "remedy": "Expand the title.",
+                            }
+                        ],
+                        "metadata": {},
+                    }
+                ],
+            },
+            artifacts=[],
+        )
+
+    manager = EvaluationJobManager(executor=fake_executor)
+    accepted = manager.submit(sample_request())
+
+    deadline = time.time() + 2
+    while time.time() < deadline:
+        status = manager.get_status(accepted["evaluationId"])
+        if status["terminal"]:
+            break
+        time.sleep(0.02)
+
+    result = manager.get_result(accepted["evaluationId"])
+
+    assert result["evaluationId"] == accepted["evaluationId"]
+    assert result["status"] == "success"
+    assert result["summary"]["score"] == 91.5
+    assert result["severityCounts"]["warning"] == 1
+    assert result["findings"][0]["ruleId"] == "seo-title"
+    assert result["findings"][0]["severity"] == "warning"

@@ -374,6 +374,35 @@ class EvaluationJobManager:
     def get_status(self, evaluation_id: str) -> Dict[str, Any]:
         return self._get_record(evaluation_id).to_status_response()
 
+    def get_result(self, evaluation_id: str) -> Dict[str, Any]:
+        record = self._get_record(evaluation_id)
+        if not record.terminal or record.result_payload is None:
+            raise ApiRouteError(
+                status=409,
+                code="conflict",
+                message="Evaluation result is not ready.",
+                details=evaluation_id,
+            )
+
+        severity_counts = self._build_severity_counts(record.result_payload)
+        findings = self._build_findings(record.result_payload)
+        summary = {
+            "score": record.result_payload.get("average_score", 0.0),
+            "passed": severity_counts.get("pass", 0),
+            "warnings": severity_counts.get("warning", 0),
+            "failed": severity_counts.get("critical", 0),
+            "domains": record.result_payload.get("domains", []),
+        }
+        return {
+            "evaluationId": record.evaluation_id,
+            "status": record.status,
+            "summary": summary,
+            "severityCounts": severity_counts,
+            "findings": findings,
+            "startedAt": record.started_at,
+            "completedAt": record.completed_at,
+        }
+
     def _get_record(self, evaluation_id: str) -> EvaluationRecord:
         if not evaluation_id.strip():
             raise ApiRouteError(
@@ -439,6 +468,51 @@ class EvaluationJobManager:
             result_payload=outcome.result_payload,
             artifacts=outcome.artifacts,
         )
+
+    @staticmethod
+    def _build_severity_counts(payload: Dict[str, Any]) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for domain in payload.get("domains", []):
+            if not isinstance(domain, dict):
+                continue
+            for issue in domain.get("issues", []):
+                if not isinstance(issue, dict):
+                    continue
+                severity = str(issue.get("severity", "")).strip()
+                if not severity:
+                    continue
+                counts[severity] = counts.get(severity, 0) + 1
+        return counts
+
+    @staticmethod
+    def _build_findings(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings: List[Dict[str, Any]] = []
+        for domain in payload.get("domains", []):
+            if not isinstance(domain, dict):
+                continue
+            domain_name = str(domain.get("name", "")).strip() or "Finding"
+            for issue in domain.get("issues", []):
+                if not isinstance(issue, dict):
+                    continue
+                severity = str(issue.get("severity", "")).strip()
+                findings.append(
+                    {
+                        "ruleId": str(issue.get("id", "")).strip() or None,
+                        "title": domain_name,
+                        "severity": severity or None,
+                        "status": (
+                            "fail"
+                            if severity == config.SEVERITY_CRITICAL
+                            else "warn"
+                            if severity == config.SEVERITY_WARNING
+                            else "pass"
+                            if severity == config.SEVERITY_PASS
+                            else severity or None
+                        ),
+                        "description": str(issue.get("message", "")).strip() or None,
+                    }
+                )
+        return findings
 
 
 DEFAULT_JOB_MANAGER = EvaluationJobManager()
