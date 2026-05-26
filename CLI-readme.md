@@ -77,6 +77,22 @@ Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab C
 `--engine mcp` requires a pinned executable or versioned package. The mutable
 `npx -y @modelcontextprotocol/server-playwright` download path is disabled.
 
+## Exit Codes
+
+- `0`: successful evaluation and report generation.
+- `1`: validation, fetch, SSRF, or configuration failure.
+- `2`: performance budget violation when `--budget` is supplied.
+
+## Output Artifacts
+
+| `--format` | Primary artifact | Notes |
+|---|---|---|
+| `json` | `reports/report.json` | Canonical machine-readable payload. |
+| `html` | `reports/report.html` | Rich interactive report. |
+| `llm` | `reports/report.md` | Markdown summary for agents and LLMs. |
+| `geo-xml` | `reports/report.xml` | GEO-style XML output. |
+| `both` | `reports/report.json` + `reports/report.html` | Default dual-output mode. |
+
 ## Release Notes
 
 - The `v1.2.2` docs refresh keeps the CLI contract, environment variable surface, and report outputs aligned.

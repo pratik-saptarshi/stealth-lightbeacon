@@ -10,8 +10,21 @@ We take security vulnerabilities seriously. We request that security researchers
 
 If you discover a security flaw (such as an SSRF bypass, Stored XSS, or private data leak risk), please report it privately:
 - Use GitHub's private vulnerability reporting for this repository once it is published.
-- If private reporting is unavailable, contact the maintainers through a non-public channel before sharing details publicly.
+- If private reporting is unavailable, contact the maintainers through the same
+  private release channel used for coordination before sharing details publicly.
 - Include comprehensive details: target systems, step-by-step reproduction instructions, payload evidence, and potential impact assessments.
+
+---
+
+## In Scope
+
+Reports are in scope when they affect:
+
+- SSRF bypasses or private-range access controls.
+- Stored or reflected XSS in rendered reports or crawler output.
+- Private data exposure in persisted reports, artifacts, or logs.
+- Authentication, authorization, or secret-handling failures.
+- Supply-chain or dependency issues that can affect release integrity.
 
 ---
 
