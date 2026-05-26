@@ -1,0 +1,543 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Stealth Lightbeacon Backend API",
+    "version": "0.1.0",
+    "description": "Generated backend companion contract for Stealth Lightbeacon desktop integration."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Default local companion target"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Backend health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "responses": {
+          "200": {
+            "description": "Backend capability surface",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                },
+                "example": {
+                  "apiMode": {
+                    "mode": "local",
+                    "baseUrl": "http://127.0.0.1:8000",
+                    "transport": "http",
+                    "apiVersion": "0.1.0",
+                    "supportsRemote": false
+                  },
+                  "evaluationProfiles": [
+                    "seo",
+                    "performance",
+                    "accessibility",
+                    "aeo-geo",
+                    "ux",
+                    "security"
+                  ],
+                  "outputFormats": [
+                    "json",
+                    "html",
+                    "both",
+                    "llm",
+                    "geo-xml"
+                  ],
+                  "supportsRecon": true,
+                  "supportsArtifacts": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluations": {
+      "post": {
+        "operationId": "createEvaluation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEvaluationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Evaluation accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateEvaluationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluations/{evaluation_id}": {
+      "get": {
+        "operationId": "getEvaluationStatus",
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evaluation status response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown evaluation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluations/{evaluation_id}/result": {
+      "get": {
+        "operationId": "getEvaluationResult",
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Terminal evaluation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluations/{evaluation_id}/artifacts": {
+      "get": {
+        "operationId": "getEvaluationArtifacts",
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact descriptors for a completed evaluation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArtifactDescriptor"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recon": {
+      "post": {
+        "operationId": "runRecon",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recon recommendation response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconResponse"
+                },
+                "example": {
+                  "recommendation": "stealth",
+                  "confidence": 0.9,
+                  "evidenceSummary": "cloudflare, status:403"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "details": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "service",
+          "apiVersion"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "apiVersion": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiModeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "baseUrl",
+          "transport",
+          "apiVersion",
+          "supportsRemote"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "remote"
+            ]
+          },
+          "baseUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "http"
+            ]
+          },
+          "apiVersion": {
+            "type": "string"
+          },
+          "supportsRemote": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiMode",
+          "evaluationProfiles",
+          "outputFormats",
+          "supportsRecon",
+          "supportsArtifacts"
+        ],
+        "properties": {
+          "apiMode": {
+            "$ref": "#/components/schemas/ApiModeResponse"
+          },
+          "evaluationProfiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputFormats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportsRecon": {
+            "type": "boolean"
+          },
+          "supportsArtifacts": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateEvaluationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target",
+          "profile",
+          "outputFormats",
+          "maxDepth",
+          "maxUrls",
+          "failOnCritical",
+          "budgetGate"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "outputFormats": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxDepth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "maxUrls": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000
+          },
+          "failOnCritical": {
+            "type": "boolean"
+          },
+          "budgetGate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateEvaluationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evaluationId",
+          "status"
+        ],
+        "properties": {
+          "evaluationId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvaluationStatusResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evaluationId",
+          "status",
+          "terminal"
+        ],
+        "properties": {
+          "evaluationId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "progressPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "message": {
+            "type": "string"
+          },
+          "exitState": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failure",
+              "budget_breach",
+              "cancelled"
+            ]
+          },
+          "terminal": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EvaluationResultResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evaluationId",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "evaluationId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ArtifactDescriptor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "kind",
+          "mediaType"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "ReconRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "ReconResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recommendation",
+          "confidence",
+          "evidenceSummary"
+        ],
+        "properties": {
+          "recommendation": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidenceSummary": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
