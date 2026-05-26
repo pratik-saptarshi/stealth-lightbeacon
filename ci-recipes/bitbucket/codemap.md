@@ -15,6 +15,8 @@ custom orchestration or branching logic.
 Pipeline variables feed `SLB_TARGET_URL`, `SLB_AUTH_TOKEN`, and `SLB_AUDITS`;
 the step forces `SLB_FAIL_ON_CRITICAL=1`, executes `python main.py evaluate
 --format both --out reports`, and archives `reports/report.json`.
+The recipe also archives `reports/report.html` so the dual-output contract stays
+in sync with the CLI docs.
 
 ## Integration points
 

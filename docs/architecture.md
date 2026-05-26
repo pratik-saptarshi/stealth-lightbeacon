@@ -1,6 +1,6 @@
 # Stealth Lightbeacon — Architecture & Technical Workflows
 
-This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine. It is kept in sync with the `v1.2.2` release train.
+This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine. It is kept in sync with the `v1.2.4` release train.
 
 ---
 
@@ -142,6 +142,7 @@ The supporting utility layer keeps the orchestration surface stable:
 - `utils/ontology.py` buffers vector writes during the crawl and flushes them in batches to reduce hot-path persistence cost.
 - `scripts/run_public_audit.sh` wraps the standard evaluate flow for a public audit profile and accepts `TARGET=...` style overrides.
 - `SLB_MCP_COMMAND`, `SLB_MCP_ARGS`, `SLB_MCP_HANDSHAKE_TIMEOUT`, `SLB_MCP_TOOL_TIMEOUT`, and `SLB_MCP_SHUTDOWN_TIMEOUT` define the MCP runtime contract when `--engine mcp` is selected.
+- `config.describe_mcp_runtime()` surfaces the resolved MCP command, args, and timeout values so startup diagnostics can print the pinned runtime contract directly.
 - `utils/agent_card.py` defines the stable agent-card manifest used by orchestration consumers.
 
 ---
@@ -154,7 +155,7 @@ The repository now validates pinned dependencies before test execution:
 2. `scripts/validate_dependencies.py` calls `piptools compile` against the live PyPI index to catch incompatible pins before merge.
 3. `.github/workflows/ci.yml` installs dependencies with `--extra-index-url https://pypi.org/simple`, validates the lock state, then runs the test suite on Python 3.11.
 4. `pre-commit run dependency-validation --all-files` mirrors the CI check locally so dependency drift is caught early.
-5. The current release notes for `v1.2.2` live in `changelog.md` and the alias docs point to the same history.
+5. The current release notes for `v1.2.4` live in `changelog.md` and the alias docs point to the same history.
 
 The prioritized remediation roadmap and phase validation gates live in
 [`docs/architecture-beads-plan.md`](docs/architecture-beads-plan.md).

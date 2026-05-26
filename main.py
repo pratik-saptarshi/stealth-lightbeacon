@@ -500,6 +500,11 @@ def evaluate(
         )
         if recon_auto:
             engine = recon_recommendation.recommended_engine
+
+    if engine.lower().strip() == "mcp":
+        console.print(
+            f"[dim]MCP runtime contract: {json.dumps(config.describe_mcp_runtime(), sort_keys=True)}[/dim]"
+        )
     
     # Resolve custom scraping engine if a specific strategy is selected
     scraping_engine = ScrapingFactory.get_engine(engine, allow_private=allow_private)

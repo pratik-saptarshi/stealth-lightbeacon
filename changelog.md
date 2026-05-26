@@ -1,14 +1,24 @@
 # Changelog
 
+## v1.2.4
+
+### Backlog, Release, and Coverage Hardening
+
+- Validated the remaining BEADS backlog and merged the phase-wise implementation plan into an execution tracker.
+- Added startup MCP diagnostics that expose the resolved command, arguments, and timeout budgets when `--engine mcp` is selected.
+- Hardened the MCP runtime contract with pinned-command validation and fallback behavior coverage.
+- Aligned the GitHub Actions, Bitbucket, and GitLab audit recipes so the dual-output contract archives both `report.json` and `report.html`.
+- Added focused regression coverage for the low-surface helper paths and raised repo-wide coverage above the 80% target.
+- Kept the canonical docs, alias shims, and BOM metadata synchronized for release publication.
+
+### Validation and Sanity
+
+- Ran the unit, integration, and full-suite coverage checks before publish.
+- Confirmed the repository passes the 80% coverage target with the current release shape.
+
 ## Unreleased
 
-### Wrapper and Hardening
-
-- Added `scripts/run_public_audit.sh` as a convenience wrapper for a public audit profile. It defaults to `https://www.example.com` and accepts `TARGET=...` style overrides.
-- Documented the env-style invocation so operators can run `TARGET=www.example.com ./scripts/run_public_audit.sh` without editing the script.
-- Hardened SEO and UX attribute handling so empty and `None`-like `href`, `content`, `style`, `class`, and `id` values no longer crash evaluation. Malformed markup now turns into normal findings instead of exceptions.
-- Removed preflight seed probing from the public audit wrapper so the target is handed straight to the SSRF-guarded audit flow.
-- Stripped internal review artifacts and local-path references from the public docs surface.
+- _No unreleased changes yet._
 
 ## v1.2.2
 

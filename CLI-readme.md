@@ -2,7 +2,7 @@
 
 This repository exposes one primary command: `python main.py evaluate`.
 
-The runtime identity and docs surface are aligned with the `v1.2.2` release train.
+The runtime identity and docs surface are aligned with the `v1.2.4` release train.
 
 ## Quick Start
 
@@ -72,6 +72,9 @@ The CLI also reads these environment variables for CI workflows:
 - `SLB_MCP_TOOL_TIMEOUT`: timeout in seconds for MCP tool calls and I/O drains.
 - `SLB_MCP_SHUTDOWN_TIMEOUT`: timeout in seconds for MCP process shutdown.
 
+When `--engine mcp` is selected, startup diagnostics print the resolved command,
+arguments, and timeout budgets so the pinned runtime is observable at launch.
+
 Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab CI, and Bitbucket Pipelines, and they rely on those variables as the CI contract.
 
 `--engine mcp` requires a pinned executable or versioned package. The mutable
@@ -93,9 +96,12 @@ Recipe templates are checked in under `ci-recipes/` for GitHub Actions, GitLab C
 | `geo-xml` | `reports/report.xml` | GEO-style XML output. |
 | `both` | `reports/report.json` + `reports/report.html` | Default dual-output mode. |
 
+CI recipes archive both `reports/report.json` and `reports/report.html` when
+the dual-output mode is used.
+
 ## Release Notes
 
-- The `v1.2.2` docs refresh keeps the CLI contract, environment variable surface, and report outputs aligned.
+- The `v1.2.4` release keeps the CLI contract, environment variable surface, and report outputs aligned.
 - The canonical release history lives in `changelog.md`; `chagelog.md` remains the alias entry point for the same notes.
 
 ## Output

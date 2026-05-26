@@ -16,8 +16,8 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15  # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "StealthLightbeacon/1.2.2 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
-        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.2)"
+        "StealthLightbeacon/1.2.4 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.4)"
     )
 }
 
@@ -65,3 +65,14 @@ MCP_COMMAND_ARGS = MCP_ARGS
 MCP_HANDSHAKE_TIMEOUT_SECONDS = MCP_HANDSHAKE_TIMEOUT
 MCP_TOOL_TIMEOUT_SECONDS = MCP_TOOL_TIMEOUT
 MCP_SHUTDOWN_TIMEOUT_SECONDS = MCP_SHUTDOWN_TIMEOUT
+
+
+def describe_mcp_runtime() -> dict[str, object]:
+    """Return the resolved MCP command, args, and timeout contract."""
+    return {
+        "command": MCP_COMMAND,
+        "args": list(MCP_COMMAND_ARGS),
+        "handshake_timeout_seconds": MCP_HANDSHAKE_TIMEOUT,
+        "tool_timeout_seconds": MCP_TOOL_TIMEOUT,
+        "shutdown_timeout_seconds": MCP_SHUTDOWN_TIMEOUT,
+    }

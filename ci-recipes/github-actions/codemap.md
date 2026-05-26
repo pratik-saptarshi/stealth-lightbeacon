@@ -15,7 +15,8 @@ into env vars and keeps the pipeline intentionally flat.
 `inputs.target_url` and `inputs.audits` become `SLB_TARGET_URL` and
 `SLB_AUDITS`; `secrets.SLB_AUTH_TOKEN` becomes `SLB_AUTH_TOKEN`. The job sets
 `SLB_FAIL_ON_CRITICAL=1`, runs `python main.py evaluate --format both --out
-reports`, and uploads `reports/report.json` as `stealth-lightbeacon-report`.
+reports`, and uploads `reports/report.json` plus `reports/report.html` as
+`stealth-lightbeacon-report`.
 
 ## Integration points
 

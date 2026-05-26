@@ -13,3 +13,4 @@ pipelines:
           - python main.py evaluate --format both --out reports
         artifacts:
           - reports/report.json
+          - reports/report.html

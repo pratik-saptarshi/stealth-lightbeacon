@@ -18,7 +18,7 @@ CI injects the target URL, optional audit subset, and auth token into
 `SLB_TARGET_URL`, `SLB_AUDITS`, and `SLB_AUTH_TOKEN`. The `evaluate` command
 reads those settings, runs the crawler/evaluators, writes JSON and HTML output
 under `reports/`, and can exit non-zero on critical issues. The recipes
-archive `reports/report.json`.
+archive `reports/report.json` and `reports/report.html`.
 
 ## Integration points
 

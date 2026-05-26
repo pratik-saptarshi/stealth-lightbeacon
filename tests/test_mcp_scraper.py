@@ -42,9 +42,35 @@ class _FakeProcess:
         return 0
 
 
+class _FallbackEngine:
+    def __init__(self, allow_private=False):
+        self.allow_private = allow_private
+
+    async def scrape(self, url):
+        return "<html><body>fallback</body></html>"
+
+
 def test_mcp_layer_rejects_mutable_runtime_download_default():
     with pytest.raises(ValueError, match="pinned executable or versioned package"):
         StealthMcpLayer()
+
+
+@pytest.mark.asyncio
+async def test_mcp_layer_falls_back_when_subprocess_creation_fails(monkeypatch):
+    async def fake_subprocess_exec(*args, **kwargs):
+        raise OSError("mcp missing")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess_exec)
+    monkeypatch.setattr("modules.scraping.stealth_mcp.ObscuraEngine", _FallbackEngine)
+
+    layer = StealthMcpLayer(
+        mcp_command="/opt/mcp/playwright",
+        mcp_args=["--pinned", "1.2.3"],
+    )
+
+    html = await layer.scrape("https://example.com")
+
+    assert html == "<html><body>fallback</body></html>"
 
 
 @pytest.mark.asyncio

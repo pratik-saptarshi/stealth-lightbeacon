@@ -66,6 +66,15 @@ class StealthMcpLayer(ScrapingEngine):
                 "set SLB_MCP_COMMAND/SLB_MCP_ARGS instead of using the mutable runtime download default."
             )
 
+    def describe_runtime(self) -> dict[str, object]:
+        return {
+            "command": self.mcp_command,
+            "args": list(self.mcp_args),
+            "handshake_timeout_seconds": self.handshake_timeout,
+            "tool_timeout_seconds": self.tool_timeout,
+            "shutdown_timeout_seconds": self.shutdown_timeout,
+        }
+
     async def _drain(self, stream: Any) -> None:
         await asyncio.wait_for(stream.drain(), timeout=self.tool_timeout)
 

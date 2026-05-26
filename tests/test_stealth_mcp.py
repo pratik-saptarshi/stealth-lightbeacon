@@ -23,6 +23,36 @@ async def test_stealth_mcp_requires_configured_command(monkeypatch):
         stealth_mcp.StealthMcpLayer()
 
 
+def test_stealth_mcp_runtime_diagnostics_include_pinned_command(monkeypatch):
+    monkeypatch.setattr(stealth_mcp.config, "MCP_COMMAND", "/opt/mcp/playwright")
+    monkeypatch.setattr(stealth_mcp.config, "MCP_COMMAND_ARGS", ["--stdio", "--pinned", "1.2.3"])
+    monkeypatch.setattr(stealth_mcp.config, "MCP_HANDSHAKE_TIMEOUT", 11.5)
+    monkeypatch.setattr(stealth_mcp.config, "MCP_TOOL_TIMEOUT", 21.5)
+    monkeypatch.setattr(stealth_mcp.config, "MCP_SHUTDOWN_TIMEOUT", 3.5)
+
+    runtime = stealth_mcp.config.describe_mcp_runtime()
+
+    assert runtime == {
+        "command": "/opt/mcp/playwright",
+        "args": ["--stdio", "--pinned", "1.2.3"],
+        "handshake_timeout_seconds": 11.5,
+        "tool_timeout_seconds": 21.5,
+        "shutdown_timeout_seconds": 3.5,
+    }
+
+
+def test_stealth_mcp_rejects_mutable_runtime_download_default(monkeypatch):
+    monkeypatch.setattr(stealth_mcp.config, "MCP_COMMAND", "npx")
+    monkeypatch.setattr(
+        stealth_mcp.config,
+        "MCP_COMMAND_ARGS",
+        ["-y", "@modelcontextprotocol/server-playwright"],
+    )
+
+    with pytest.raises(ValueError, match="pinned executable or versioned package"):
+        stealth_mcp.StealthMcpLayer()
+
+
 @pytest.mark.asyncio
 async def test_stealth_mcp_scrape_happy_path(monkeypatch):
     monkeypatch.setattr(stealth_mcp.config, "MCP_COMMAND", "/usr/bin/mcp-test")

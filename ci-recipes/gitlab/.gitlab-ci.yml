@@ -2,18 +2,18 @@ stages:
   - audit
 
 audit:
-  image: python:3.11
   stage: audit
+  image: python:3.11
   variables:
-    SLB_TARGET_URL: "$SLB_TARGET_URL"
-    SLB_AUTH_TOKEN: "$SLB_AUTH_TOKEN"
-    SLB_AUDITS: "$SLB_AUDITS"
     SLB_FAIL_ON_CRITICAL: "1"
   script:
-    - python -m pip install -r requirements.txt
+    - export SLB_TARGET_URL="${SLB_TARGET_URL}"
+    - export SLB_AUTH_TOKEN="${SLB_AUTH_TOKEN}"
+    - export SLB_AUDITS="${SLB_AUDITS}"
+    - pip install -r requirements.txt
     - python main.py evaluate --format both --out reports
   artifacts:
     when: always
     paths:
       - reports/report.json
-    expire_in: 1 week
+      - reports/report.html

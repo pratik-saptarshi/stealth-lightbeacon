@@ -11,9 +11,13 @@ renderers, and release/docs contracts for CI and human operators.
 - `config.py`: shared runtime constants, headers, and environment loading.
 - `report/formats.py`: canonical normalized payload and renderer layer.
 - `report/generator.py`: HTML report generator.
+- `changelog.md`: canonical release history for the active train.
+- `bill-of-material.md`: generated BOM and dependency metadata.
 - `utils/agent_card.py`: orchestration manifest for downstream automation.
 - `docs/architecture.md`: canonical architecture guide.
 - `docs/architecture-beads-plan.md`: phase-based remediation backlog.
+- `CONTRIBUTING.md`: contribution workflow and validation expectations.
+- `SECURITY.md`: canonical security reporting policy.
 
 ## Repository Directory Map
 | Directory | Responsibility Summary | Detailed Map |
@@ -35,5 +39,6 @@ parallel evaluator execution, payload normalization, report generation, and
 optional persistence/search indexing.
 
 ## Integration
-Root docs and alias files are part of the release contract. Submaps are the
-authoritative detail sources for directory-specific behavior.
+Root docs, release notes, and compatibility alias files are part of the release
+contract. Submaps are the authoritative detail sources for
+directory-specific behavior.

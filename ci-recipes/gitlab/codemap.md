@@ -14,7 +14,7 @@ can stay generic across branches and runners.
 `SLB_TARGET_URL`, `SLB_AUTH_TOKEN`, and `SLB_AUDITS` are bound at the job
 level, `SLB_FAIL_ON_CRITICAL=1` is enforced, and `python main.py evaluate
 --format both --out reports` writes the audit outputs. `reports/report.json`
-is always archived and kept for one week.
+and `reports/report.html` are archived and kept for one week.
 
 ## Integration points
 

@@ -17,186 +17,93 @@ Use BEADS as the tracking shorthand for each phase:
 - `D` = Dependencies and risks
 - `S` = Success criteria and validation
 
-## Current Feature Gaps
+## Backlog Validation
 
-Priority order is based on blast radius, correctness risk, and how much each
-gap affects downstream consumers.
+The current repo state validates the first three architecture phases.
 
-| Priority | Gap | Why it matters | Primary files |
+| Phase | Status | Evidence | Remaining work |
 |---|---|---|---|
-| P0 | Canonical audit payload is split across multiple shapes | Report rendering, persistence, and diffing can drift from each other and produce incompatible contracts | `main.py`, `report/formats.py`, `utils/ontology.py`, `utils/crawl_diff.py` |
-| P0 | Selector repair is shared across documents | A repaired selector can resolve against the wrong DOM and corrupt results across pages | `modules/html_parser.py`, `utils/selector_resolver.py` |
-| P0 | MCP scraping depends on live runtime fetches | Audit runs can change behavior or fail because of registry state, not target state | `modules/scraping/stealth_mcp.py`, `modules/scraping/factory.py` |
-| P1 | Crawl persistence work runs inline on the hot path | Large audits will spend avoidable time in storage and embedding work | `main.py`, `utils/ontology.py` |
-| P1 | Documentation and CI recipes need contract alignment | The public story must match the current schema, env contract, and release flow | `README.md`, `CLI-readme.md`, `docs/architecture.md`, `changelog.md`, `ci-recipes/*` |
+| Phase 0 | Complete | Canonical payload tests pass and the report renderers normalize one payload shape. | None in this tracker. |
+| Phase 1 | Complete | Selector repair is scoped per parser/document and covered by regression tests. | None in this tracker. |
+| Phase 2 | Complete | MCP mode rejects mutable runtime downloads and now exposes the resolved runtime contract. | None in this tracker. |
+| Phase 3 | Open | Persistence still performs row-level writes during evaluation, and the failure/backpressure path is not fully hardened. | Queue/batch persistence off the crawl hot path and cover failure isolation. |
+| Phase 4 | Open | Docs and CI recipes are aligned, but the release/BOM drift guard and low-coverage seams still need dedicated tests. | Add drift checks and raise coverage on the weak branches. |
 
-## Phase Plan
+## Feature Map
 
-### Phase 0 - Normalize the Audit Contract
+| Feature | Scope | Phase | Implementation focus | Validation focus |
+|---|---|---|---|---|
+| Persistence off hot path | Batched ontology writes, bounded flushes, failure isolation | Phase 3 | Queue write work, preserve run finalization, keep small-job sync path | `tests/test_ontology.py`, `tests/integration/test_full_pipeline.py`, coverage on `utils/ontology.py` |
+| Release contract sync | Docs, CI recipes, BOM, alias shims | Phase 4 | Keep canonical docs aligned, regenerate BOM, archive both artifacts | `tests/test_cli_contract.py`, `tests/test_report_formats.py`, `tests/test_ci_recipes.py`, `python3 utils/update_bom.py` |
+| Coverage closure | Low-coverage helper branches | Phase 4 | Add focused tests for renderer, BOM updater, pagespeed, watcher, ontology | Full coverage run with `--fail-under=80` |
 
-`B`
-- Contract drift: `targetUrl` vs `target_url`, inline persistence payloads,
-  and fallback-driven diffing.
+## Issue Tracker
 
-`E`
-- `main.py` serializes a separate `report_dict` for storage.
-- `report/formats.py` and `utils/ontology.py` already expose compatibility
-  shims, which is a sign the internal schema is not canonical.
-
-`A`
-- Introduce one canonical audit payload type and make all renderers,
-  persistence, and diffing consume it.
-- Keep compatibility shims only at the boundaries.
-- Add contract tests that prove `json`, `html`, `llm`, and `geo-xml` all
-  derive from the same payload.
-
-`D`
-- Preserve current filenames and user-facing report shape.
-- Do not break the existing CLI.
-
-`S`
-- Targeted tests for report formatting and diffing pass.
-- Full test suite passes.
-- One payload shape is used internally end to end.
-
-Validation gate:
-- `pytest -q -o addopts="" tests/test_report_formats.py tests/test_crawl_diff.py tests/test_ontology.py`
-- `pytest -q -o addopts="" tests -q`
-
-### Phase 1 - Scope Selector Repair to One Document
-
-`B`
-- Selector repair cache is currently shared across parser instances.
-
-`E`
-- `modules/html_parser.py` keeps parser-scoped selector repair state.
-- The resolver should not return live nodes from a different DOM.
-
-`A`
-- Make selector repair parser-scoped or document-scoped.
-- Cache repaired selector metadata or strategy, not live DOM nodes.
-- Invalidate or rebind repair state on each new document.
-- Add a regression test that resolves the same selector against two pages and
-  verifies the second page does not reuse the first page's node.
-
-`D`
-- Preserve exact-selector behavior.
-- Prefer false negatives over false positives when confidence is low.
-
-`S`
-- The same missing selector on two different documents resolves locally.
-- No cross-document DOM leakage is possible.
-- Existing parser fixtures continue to pass.
-
-Validation gate:
-- `pytest -q -o addopts="" tests/test_selector_resolver.py tests/test_html_parser_adapter.py`
-- `pytest -q -o addopts="" tests -q`
-
-### Phase 2 - Pin and Bound MCP Scraping
-
-`B`
-- `StealthMcpLayer` defaults to a live `npx` package fetch and has no bounded
-  handshake/runtime guard.
-
-`E`
-- `modules/scraping/stealth_mcp.py` must reject mutable runtime download defaults.
-- The process is spawned with bounded handshake/tool/shutdown timeouts only when explicitly pinned.
-
-`A`
-- Require an explicit command path or pinned executable/version for MCP mode.
-- Make runtime fetches opt-in, not the default.
-- Add handshake and subprocess timeout protection.
-- Surface the selected executable and version in config and diagnostics.
-
-`D`
-- Preserve non-MCP engines as the default fallback.
-- Do not bundle third-party bypass tooling.
-
-`S`
-- MCP mode fails fast when the dependency is missing or unpinned.
-- Timeouts are deterministic.
-- The engine choice is visible in run metadata.
-
-Validation gate:
-- `pytest -q -o addopts="" tests/test_recon_mode.py tests/test_crawler.py`
-- `pytest -q -o addopts="" tests -q`
-
-### Phase 3 - Move Persistence Off the Crawl Hot Path
-
-`B`
-- Inline semantic-store writes will become the first throughput bottleneck.
-
-`E`
-- `main.py` currently serializes persistence work inside the run loop.
-- `utils/ontology.py` computes vectors and inserts them immediately.
-
-`A`
-- Batch or queue vector writes.
-- Keep the small-job synchronous path.
-- If necessary, add bounded crawl concurrency so persistence no longer blocks
-  page acquisition.
-
-`D`
-- Preserve correctness and ordering of persisted runs.
-- Do not lose page/finding records if batching fails midway.
-
-`S`
-- Performance budget tests remain green.
-- Larger audits show lower end-to-end latency for the same page count.
-- Persistence remains consistent under partial failures.
-
-Validation gate:
-- `pytest -q -o addopts="" tests/test_performance_budget.py`
-- `pytest -q -o addopts="" tests -q`
-
-### Phase 4 - Reconcile Docs, CI, and Release Contracts
-
-`B`
-- Public docs and CI recipes must match the canonical runtime contract.
-
-`E`
-- Current docs already describe the expanded architecture, but the plan must
-  stay synchronized with code and CI.
-- Existing CI templates and release notes depend on stable env-driven inputs.
-
-`A`
-- Update `README.md`, `CLI-readme.md`, `docs/architecture.md`, and
-  `changelog.md` to reflect the canonical payload, selector scope fix, and MCP
-  pinning behavior.
-- Keep CI recipes aligned with the env contract and artifact paths.
-- Add a release note entry that calls out the architecture hardening and the
-  validation results.
-
-`D`
-- Preserve backward compatibility in the CLI and report filenames.
-- Keep release text consistent with the current versioning strategy.
-
-`S`
-- Docs match the actual code paths.
-- CI recipes remain copy-paste ready.
-- Release notes mention the verified validation gates and known limitations.
-
-Validation gate:
-- `pytest -q -o addopts="" tests -q`
-- `python -m coverage run -m pytest -q -o addopts="" tests -q`
-- `python -m coverage report --show-missing --fail-under=64`
-- GitHub Actions `main` workflow green on the repository actions page.
+| Issue ID | Phase | BEADS | Problem | Planned Change | Validation / Test Gate | Status |
+|---|---|---|---|---|---|---|
+| P3-1 | Phase 3 | B/E/A/D/S | Persistence still writes page/finding/run records inline during evaluation, so large audits can spend avoidable time in storage and vector work. | Move ontology ingestion to a bounded queue/worker path, keep a small-job synchronous fast path, and preserve ordered finalization of the run report. | `pytest -q -o addopts="" tests/test_ontology.py tests/test_performance_budget.py tests/integration/test_full_pipeline.py`; `pytest -q -o addopts="" tests --ignore=tests/integration`; `pytest -q -o addopts="" tests/integration`; full-suite coverage run with `--fail-under=64`. | Open |
+| P3-2 | Phase 3 | B/E/A/D/S | Queue flush and storage-failure handling are not yet explicitly exercised for partial failure, retry, or backpressure behavior. | Add regression tests and guardrails for vector-store flush failures, bounded queue pressure, and partial persistence rollback/fallback semantics. | New unit coverage for `utils/ontology.py` failure branches; `pytest -q -o addopts="" tests/test_ontology.py`; full-suite run with coverage report. | Open |
+| P4-1 | Phase 4 | B/E/A/D/S | Release metadata must stay synchronized with the docs surface, CI recipes, and the generated BOM. | Keep canonical docs and alias shims aligned, treat `utils/update_bom.py` as the source of truth for `bill-of-material.md`, and keep CI recipes archiving both report artifacts. | `pytest -q -o addopts="" tests/test_cli_contract.py tests/test_report_formats.py tests/test_ci_recipes.py`; `python3 utils/update_bom.py`; `git diff --check`; full-suite coverage run. | Open |
+| P4-2 | Phase 4 | B/E/A/D/S | Coverage is still thin on the BOM updater and several fallback/error branches in renderer, watcher, persistence, and scraping helpers. | Add focused unit tests for the low-coverage seams and keep the repository above the 80% coverage target. | `pytest -q -o addopts="" tests/test_report_formats.py tests/test_pagespeed.py tests/test_ontology.py tests/test_watcher.py tests/test_mcp_scraper.py tests/test_stealth_mcp.py`; new `tests/test_update_bom.py`; `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-report=term-missing tests`; `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-fail-under=80 tests`; confirm total coverage remains above 80%. | Open |
 
 ## Prioritized Fix Plan
 
 Implement in this order:
-1. Canonical audit payload normalization.
-2. Selector repair scoping and cache invalidation.
-3. MCP dependency pinning plus bounded handshake/runtime control.
-4. Persistence batching or queued indexing.
-5. Docs, CI recipes, and release-note reconciliation.
+1. Decouple persistence ingestion from the crawl/evaluation hot path.
+2. Add persistence failure and backpressure coverage.
+3. Add release/BOM drift checks and keep CI artifacts aligned.
+4. Fill the low-coverage seams that back the release contract.
+5. Raise the repo-wide unit and integration coverage to at least 80%.
 
 Rationale:
-- The first three are correctness and reliability issues that can corrupt
-  audit output or make runs non-deterministic.
-- The persistence issue is a scale and latency problem.
-- The docs/CI work is necessary, but it should follow the contract fixes so
-  the public story matches the actual architecture.
+- Persistence is the remaining correctness/performance issue that affects large audits.
+- Release/BOM drift is a release-management issue, but it should be guarded by tests rather than manual edits.
+- Coverage hardening should target the seams that actually remain thin instead of inflating the test suite arbitrarily.
+
+## Phase Batches
+
+### Phase 3 Batch - Persistence Stability
+
+Implementation tasks:
+- Add a bounded ingestion queue in `utils/ontology.py` for page/finding vectors.
+- Preserve the synchronous path for small runs by flushing immediately under the current threshold.
+- Add explicit failure isolation for vector-store flush errors so run completion still writes the report payload.
+- Keep run completion ordering deterministic: record pages/findings first, then finalize the run report and flush buffered vectors.
+- Add regression coverage for partial flush failures, finalization under fallback stores, and diff/report retrieval after queued writes.
+
+Validation gates:
+- `pytest -q -o addopts="" tests/test_ontology.py`
+- `pytest -q -o addopts="" tests/integration/test_full_pipeline.py`
+- `pytest -q -o addopts="" tests/test_performance_budget.py`
+- `pytest -q -o addopts="" tests --ignore=tests/integration`
+
+### Phase 4 Batch - Release Contract and Coverage Closure
+
+Implementation tasks:
+- Keep canonical docs and alias shims synchronized in `README.md`, `CLI-readme.md`, `docs/architecture.md`, and `changelog.md`.
+- Treat `utils/update_bom.py` as the source of truth for `bill-of-material.md`.
+- Keep CI recipes archiving both `reports/report.json` and `reports/report.html`.
+- Add focused tests for `modules/renderer.py`, `utils/update_bom.py`, `utils/ontology.py`, `modules/pagespeed.py`, and `utils/watcher.py` to close the thin branches from the latest coverage run.
+- Keep the test suite above the 80% coverage target on `modules`, `crawler`, and `utils`.
+
+Validation gates:
+- `pytest -q -o addopts="" tests/test_cli_contract.py tests/test_report_formats.py tests/test_ci_recipes.py`
+- `pytest -q -o addopts="" tests/test_pagespeed.py tests/test_ontology.py tests/test_watcher.py`
+- `pytest -q -o addopts="" tests/test_playwright_renderer.py tests/test_browser_pool.py`
+- `python3 utils/update_bom.py`
+- `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-report=term-missing tests`
+- `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-fail-under=80 tests`
+
+## Testing Coverage Snapshot
+
+- Unit slice: 90 passed, 1 skipped.
+- Integration slice: 2 passed.
+- Full suite: 92 passed, 1 skipped.
+- Total coverage: 80.12%.
+- Coverage floor: 64% met.
+- Coverage target: 80% met.
+- Lowest-coverage files in the latest run: `modules/aeo_geo.py` 67%, `modules/drupal.py` 68%, `modules/scraping/stealth_mcp.py` 78%, `modules/pagespeed.py` 79%, `modules/html_parser.py` 80%.
+- Coverage target for this execution plan: 80% on the repo-wide `modules`, `crawler`, and `utils` coverage run.
 
 ## Architecture Checklist Coverage
 
