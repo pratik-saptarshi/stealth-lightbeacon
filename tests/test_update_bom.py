@@ -6,14 +6,14 @@ from utils.update_bom import parse_requirements, update_bom
 def test_parse_requirements_skips_comments_and_blank_lines(tmp_path):
     reqs = tmp_path / "requirements.txt"
     reqs.write_text(
-        "# comment\n\nrequests==2.33.0\nfoo>=1.2\nbar\n",
+        "# comment\n\nrequests[socks]==2.33.0 ; python_version >= '3.11'\nfoo>=1.2\nrequests==2.34.0\nbar\n",
         encoding="utf-8",
     )
 
     libraries = parse_requirements(str(reqs))
 
     assert libraries == [
-        ("requests", "==2.33.0"),
+        ("requests", "==2.34.0"),
         ("foo", ">=1.2"),
         ("bar", ""),
     ]

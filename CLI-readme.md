@@ -102,7 +102,7 @@ the dual-output mode is used.
 ## Release Notes
 
 - The `v1.2.4` release keeps the CLI contract, environment variable surface, and report outputs aligned.
-- The canonical release history lives in `changelog.md`; `chagelog.md` remains the alias entry point for the same notes.
+- The canonical release history lives in `changelog.md`.
 
 ## Output
 

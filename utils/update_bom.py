@@ -30,22 +30,31 @@ def parse_requirements(filepath: str):
     Parses library names and exact version specifiers from a requirements file.
     """
     libraries = []
+    seen = {}
+    order = []
     if not os.path.exists(filepath):
         return libraries
         
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
-            line = line.strip()
+            line = line.split("#", 1)[0].strip()
+            line = line.split(";", 1)[0].strip()
             if not line or line.startswith("#"):
                 continue
-            # Parse library and specifier (e.g. requests>=2.31.0)
-            match = re.match(r"^([a-zA-Z0-9_\-]+)\s*(>=|==|>|<|<=)?\s*([0-9\.\*a-zA-Z]+)?", line)
+            # Parse library and specifier (e.g. requests[socks]>=2.31.0)
+            match = re.match(
+                r"^([a-zA-Z0-9_\-]+)(?:\[[^\]]+\])?\s*(>=|==|>|<|<=)?\s*([0-9\.\*a-zA-Z]+)?",
+                line,
+            )
             if match:
                 name = match.group(1)
                 specifier = match.group(2) or ""
                 version = match.group(3) or ""
-                libraries.append((name, specifier + version))
-    return libraries
+                key = name.lower()
+                if key not in seen:
+                    order.append(key)
+                seen[key] = (name, specifier + version)
+    return [seen[key] for key in order]
 
 def update_bom(bom_path: str, req_path: str):
     """

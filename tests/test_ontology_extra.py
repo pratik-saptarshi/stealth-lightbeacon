@@ -6,6 +6,29 @@ import utils.ontology as ontology
 from utils.ontology import OntologyStore
 
 
+class _RecordingVectorStore:
+    def __init__(self):
+        self.insert_batches = []
+
+    def insert(self, rows):
+        self.insert_batches.append([dict(row) for row in rows])
+
+    def search(self, query_vector, limit=10):
+        return []
+
+
+class _FailingVectorStore:
+    def __init__(self):
+        self.insert_batches = []
+
+    def insert(self, rows):
+        self.insert_batches.append([dict(row) for row in rows])
+        raise RuntimeError("vector store unavailable")
+
+    def search(self, query_vector, limit=10):
+        return []
+
+
 @pytest.mark.asyncio
 async def test_ontology_store_fallback_health_and_diff(tmp_path, monkeypatch):
     monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
@@ -106,5 +129,68 @@ async def test_ontology_store_missing_report_raises(tmp_path, monkeypatch):
     try:
         with pytest.raises(ValueError, match="Missing audit run"):
             await store.get_run_report("does-not-exist")
+    finally:
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_ontology_store_finish_run_survives_vector_store_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
+    monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
+
+    store = OntologyStore(root_dir=str(tmp_path / "failing"), vector_dimensions=8)
+    store.vector_store = _FailingVectorStore()
+
+    try:
+        await store.begin_run("run-fail", "https://example.com/fail", "2026-01-03T00:00:00Z", {"crawl_depth": 1})
+        await store.record_page(
+            "run-fail",
+            "https://example.com/fail",
+            "<html><body>fail</body></html>",
+            status_code=200,
+            response_time_ms=75,
+        )
+        await store.finish_run(
+            "run-fail",
+            {
+                "targetUrl": "https://example.com/fail",
+                "domains": [],
+            },
+            page_count=1,
+            domain_count=0,
+        )
+
+        report = await store.get_run_report("run-fail")
+        assert report["target_url"] == "https://example.com/fail"
+        assert store._vector_buffer == []
+        assert len(store.vector_store.insert_batches) >= 1
+    finally:
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_ontology_store_close_flushes_pending_buffer(tmp_path, monkeypatch):
+    monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
+    monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
+
+    store = OntologyStore(root_dir=str(tmp_path / "flush"), vector_dimensions=8)
+    store.vector_store = _RecordingVectorStore()
+
+    try:
+        await store.begin_run("run-flush", "https://example.com/flush", "2026-01-04T00:00:00Z", {"crawl_depth": 1})
+        await store.record_page(
+            "run-flush",
+            "https://example.com/flush",
+            "<html><title>Flush</title><body>pending</body></html>",
+            status_code=200,
+            response_time_ms=10,
+        )
+        assert len(store._vector_buffer) == 1
+
+        store.close()
+
+        assert store._vector_buffer == []
+        assert store.vector_store.insert_batches
+        assert store.vector_store.insert_batches[0][0]["kind"] == "page"
     finally:
         store.close()
