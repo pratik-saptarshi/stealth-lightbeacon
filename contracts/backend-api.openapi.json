@@ -22,6 +22,17 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "service": "stealth-lightbeacon-api",
+                  "apiVersion": "0.1.0",
+                  "appVersion": "1.2.2",
+                  "authRequired": false,
+                  "compatibility": {
+                    "minimumDesktopVersion": "0.1.0",
+                    "recommendedDesktopVersion": "0.1.0"
+                  }
                 }
               }
             }
@@ -63,6 +74,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Remote API auth required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Desktop client is incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -93,6 +124,26 @@
           },
           "400": {
             "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Remote API auth required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Desktop client is incompatible",
             "content": {
               "application/json": {
                 "schema": {
@@ -137,6 +188,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Remote API auth required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Desktop client is incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -161,6 +232,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EvaluationResultResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Remote API auth required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Desktop client is incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -191,6 +282,26 @@
                   "items": {
                     "$ref": "#/components/schemas/ArtifactDescriptor"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Remote API auth required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Desktop client is incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -263,7 +374,9 @@
         "required": [
           "status",
           "service",
-          "apiVersion"
+          "apiVersion",
+          "authRequired",
+          "compatibility"
         ],
         "properties": {
           "status": {
@@ -276,6 +389,28 @@
             "type": "string"
           },
           "appVersion": {
+            "type": "string"
+          },
+          "authRequired": {
+            "type": "boolean"
+          },
+          "compatibility": {
+            "$ref": "#/components/schemas/CompatibilityResponse"
+          }
+        }
+      },
+      "CompatibilityResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "minimumDesktopVersion",
+          "recommendedDesktopVersion"
+        ],
+        "properties": {
+          "minimumDesktopVersion": {
+            "type": "string"
+          },
+          "recommendedDesktopVersion": {
             "type": "string"
           }
         }

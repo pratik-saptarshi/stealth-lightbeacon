@@ -8,7 +8,7 @@ import os
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 from urllib.parse import urlparse
 
 from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
@@ -17,6 +17,33 @@ from companion.jobs import DEFAULT_JOB_MANAGER, EvaluationJobManager
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
 
 SERVICE_NAME = "stealth-lightbeacon-api"
+API_AUTH_ENV = "SLB_API_AUTH_TOKEN"
+DESKTOP_VERSION_HEADER = "X-Stealth-Lightbeacon-Desktop-Version"
+MINIMUM_DESKTOP_VERSION = "0.1.0"
+RECOMMENDED_DESKTOP_VERSION = "0.1.0"
+
+
+def _parse_version_parts(value: str) -> tuple[int, ...]:
+    cleaned = value.strip()
+    if not cleaned:
+        return tuple()
+    parts: list[int] = []
+    for part in cleaned.split("."):
+        if not part.isdigit():
+            return tuple()
+        parts.append(int(part))
+    return tuple(parts)
+
+
+def _is_compatible_desktop_version(version: str, minimum: str) -> bool:
+    candidate = _parse_version_parts(version)
+    baseline = _parse_version_parts(minimum)
+    if not candidate or not baseline:
+        return False
+    width = max(len(candidate), len(baseline))
+    padded_candidate = candidate + (0,) * (width - len(candidate))
+    padded_baseline = baseline + (0,) * (width - len(baseline))
+    return padded_candidate >= padded_baseline
 
 
 class CompanionHealth:
@@ -48,10 +75,16 @@ class CompanionApi:
         base_url: str,
         job_manager: EvaluationJobManager | None = None,
         health: CompanionHealth | None = None,
+        api_auth_token: str | None = None,
+        minimum_desktop_version: str = MINIMUM_DESKTOP_VERSION,
+        recommended_desktop_version: str = RECOMMENDED_DESKTOP_VERSION,
     ) -> None:
         self.base_url = base_url
         self.job_manager = job_manager or DEFAULT_JOB_MANAGER
         self.health = health or CompanionHealth()
+        self.api_auth_token = (api_auth_token or "").strip() or None
+        self.minimum_desktop_version = minimum_desktop_version
+        self.recommended_desktop_version = recommended_desktop_version
 
     def health_response(self) -> Dict[str, Any]:
         return {
@@ -59,6 +92,11 @@ class CompanionApi:
             "service": SERVICE_NAME,
             "apiVersion": API_VERSION,
             "appVersion": APP_VERSION,
+            "authRequired": self.api_auth_token is not None,
+            "compatibility": {
+                "minimumDesktopVersion": self.minimum_desktop_version,
+                "recommendedDesktopVersion": self.recommended_desktop_version,
+            },
         }
 
     def capabilities_response(self) -> Dict[str, Any]:
@@ -81,8 +119,10 @@ class CompanionApi:
         method: str,
         path: str,
         body: Dict[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> tuple[int, Dict[str, Any]]:
         normalized_path = path.rstrip("/") or "/"
+        normalized_headers = headers or {}
 
         if normalized_path == "/health":
             if method != "GET":
@@ -101,6 +141,7 @@ class CompanionApi:
                     message="Route does not support that HTTP method.",
                     details=f"{method} {normalized_path}",
                 )
+            self._require_protected_access(normalized_headers)
             return HTTPStatus.OK, self.capabilities_response()
         if normalized_path == "/openapi.json":
             if method != "GET":
@@ -119,6 +160,7 @@ class CompanionApi:
                     message="Route does not support that HTTP method.",
                     details=f"{method} {normalized_path}",
                 )
+            self._require_protected_access(normalized_headers)
             return HTTPStatus.ACCEPTED, self.job_manager.submit(body or {})
 
         segments = [segment for segment in normalized_path.split("/") if segment]
@@ -130,6 +172,7 @@ class CompanionApi:
                     message="Route does not support that HTTP method.",
                     details=f"{method} {normalized_path}",
                 )
+            self._require_protected_access(normalized_headers)
             return HTTPStatus.OK, self.job_manager.get_status(segments[1])
         if len(segments) == 3 and segments[0] == "evaluations" and segments[2] == "result":
             if method != "GET":
@@ -139,6 +182,7 @@ class CompanionApi:
                     message="Route does not support that HTTP method.",
                     details=f"{method} {normalized_path}",
                 )
+            self._require_protected_access(normalized_headers)
             return HTTPStatus.OK, self.job_manager.get_result(segments[1])
         if len(segments) == 3 and segments[0] == "evaluations" and segments[2] == "artifacts":
             if method != "GET":
@@ -148,6 +192,7 @@ class CompanionApi:
                     message="Route does not support that HTTP method.",
                     details=f"{method} {normalized_path}",
                 )
+            self._require_protected_access(normalized_headers)
             return HTTPStatus.OK, self.job_manager.get_artifacts(segments[1])
 
         raise ApiRouteError(
@@ -155,6 +200,38 @@ class CompanionApi:
             code="not_found",
             message="Route not found.",
             details=normalized_path,
+        )
+
+    def _require_protected_access(self, headers: Mapping[str, str]) -> None:
+        self._require_compatible_desktop(headers)
+        self._require_api_auth(headers)
+
+    def _require_api_auth(self, headers: Mapping[str, str]) -> None:
+        if self.api_auth_token is None:
+            return
+        authorization = headers.get("Authorization", "").strip()
+        expected = f"Bearer {self.api_auth_token}"
+        if authorization == expected:
+            return
+        raise ApiRouteError(
+            status=HTTPStatus.UNAUTHORIZED,
+            code="unauthorized",
+            message="Remote API auth required.",
+            details=API_AUTH_ENV,
+        )
+
+    def _require_compatible_desktop(self, headers: Mapping[str, str]) -> None:
+        desktop_version = headers.get(DESKTOP_VERSION_HEADER, "").strip()
+        if _is_compatible_desktop_version(
+            desktop_version,
+            self.minimum_desktop_version,
+        ):
+            return
+        raise ApiRouteError(
+            status=HTTPStatus.CONFLICT,
+            code="incompatible_client",
+            message="Desktop version is not supported by this backend.",
+            details=desktop_version or "missing_desktop_version_header",
         )
 
 
@@ -179,6 +256,7 @@ class CompanionServer(ThreadingHTTPServer):
                 startup_delay_ms=startup_delay_ms,
                 degraded_reason=degraded_reason,
             ),
+            api_auth_token=os.getenv(API_AUTH_ENV),
         )
 
 
@@ -212,6 +290,7 @@ class CompanionRequestHandler(BaseHTTPRequestHandler):
                 method=method,
                 path=parsed.path,
                 body=body,
+                headers=self.headers,
             )
         except ApiRouteError as exc:
             self._send_json(exc.status, exc.to_payload())
