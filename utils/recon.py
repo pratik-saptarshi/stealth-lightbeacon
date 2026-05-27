@@ -83,3 +83,25 @@ class ReconAdvisor:
             signals=signals,
             auto_select_allowed=True,
         )
+
+
+def build_recon_response(target: str, recommendation: ReconRecommendation) -> dict:
+    evidence_summary = "No anti-bot signals detected."
+    if recommendation.evidence and recommendation.evidence != ["no-anti-bot-signals"]:
+        evidence_summary = ", ".join(recommendation.evidence)
+
+    return {
+        "target": target,
+        "recommendation": recommendation.recommended_engine,
+        "posture": recommendation.posture,
+        "confidence": recommendation.confidence,
+        "evidence": list(recommendation.evidence),
+        "evidenceSummary": evidence_summary,
+        "signals": list(recommendation.signals),
+        "autoSelectAllowed": recommendation.auto_select_allowed,
+    }
+
+
+async def inspect_recon(target: str, client: Optional[httpx.AsyncClient] = None) -> dict:
+    recommendation = await ReconAdvisor().inspect(target, client=client)
+    return build_recon_response(target, recommendation)

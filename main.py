@@ -624,6 +624,33 @@ def evaluate(
     if runtime.fail_on_critical and any(issue.severity == config.SEVERITY_CRITICAL for result in results for issue in result.issues):
         console.print("[bold red]Critical findings detected and --fail-on-critical is enabled.[/bold red]")
         raise typer.Exit(code=1)
- 
+
+
+@app.command()
+def serve(
+    host: str = typer.Option(config.SERVICE_DEFAULT_HOST, "--host", help="Host interface for the HTTP service."),
+    port: int = typer.Option(config.SERVICE_DEFAULT_PORT, "--port", help="TCP port for the HTTP service."),
+    storage_dir: str = typer.Option(config.SERVICE_STORAGE_DIR, "--storage-dir", help="Persistent service storage directory."),
+    auth_token: Optional[str] = typer.Option(None, "--auth-token", help="Bearer token required for protected endpoints."),
+    tls_certfile: Optional[str] = typer.Option(None, "--tls-certfile", help="TLS certificate path for HTTPS."),
+    tls_keyfile: Optional[str] = typer.Option(None, "--tls-keyfile", help="TLS private key path for HTTPS."),
+):
+    """Start the Stealth Lightbeacon HTTP service."""
+    if bool(tls_certfile) ^ bool(tls_keyfile):
+        console.print("[bold red]Error: --tls-certfile and --tls-keyfile must be provided together.[/bold red]")
+        raise typer.Exit(code=1)
+
+    from service.server import run_service
+
+    console.print(f"[bold blue]Starting Stealth Lightbeacon service on [cyan]{host}:{port}[/cyan]...[/bold blue]")
+    run_service(
+        host=host,
+        port=port,
+        storage_dir=storage_dir,
+        auth_token=auth_token or os.getenv("SLB_AUTH_TOKEN", "").strip() or None,
+        tls_certfile=tls_certfile,
+        tls_keyfile=tls_keyfile,
+    )
+
 if __name__ == "__main__":
     app()

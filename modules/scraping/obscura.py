@@ -66,7 +66,7 @@ class ObscuraEngine(ScrapingEngine):
             "Upgrade-Insecure-Requests": "1"
         }
         
-        async with httpx.AsyncClient(timeout=15, headers=spoofed_headers, follow_redirects=True, http2=True) as client:
+        async with httpx.AsyncClient(timeout=15, headers=spoofed_headers, follow_redirects=True, http2=False) as client:
             response = await client.get(url)
             # Post-redirect SSRF guard validation
             await self.ssrf_guard.validate(str(response.url))
