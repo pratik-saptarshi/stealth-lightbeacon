@@ -1,0 +1,114 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Stealth Lightbeacon Service API",
+    "version": "1.2.4",
+    "description": "Canonical contract for local and remote Stealth Lightbeacon clients."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Local loopback service"
+    },
+    {
+      "url": "https://api.stealth-lightbeacon.example",
+      "description": "Cloud-hosted service"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Check service liveness.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy."
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "summary": "List service transport and feature capabilities.",
+        "responses": {
+          "200": {
+            "description": "Capability payload."
+          }
+        }
+      }
+    },
+    "/evaluations": {
+      "post": {
+        "operationId": "createEvaluation",
+        "summary": "Submit a new evaluation request.",
+        "responses": {
+          "202": {
+            "description": "Evaluation accepted."
+          }
+        }
+      }
+    },
+    "/evaluations/{evaluation_id}": {
+      "get": {
+        "operationId": "getEvaluationStatus",
+        "summary": "Poll an evaluation until completion.",
+        "responses": {
+          "200": {
+            "description": "Evaluation status."
+          }
+        }
+      }
+    },
+    "/evaluations/{evaluation_id}/result": {
+      "get": {
+        "operationId": "getEvaluationResult",
+        "summary": "Fetch the terminal result for an evaluation.",
+        "responses": {
+          "200": {
+            "description": "Evaluation result."
+          }
+        }
+      }
+    },
+    "/evaluations/{evaluation_id}/artifacts": {
+      "get": {
+        "operationId": "getEvaluationArtifacts",
+        "summary": "List the evaluation artifacts.",
+        "responses": {
+          "200": {
+            "description": "Artifact listing."
+          }
+        }
+      }
+    },
+    "/recon": {
+      "post": {
+        "operationId": "runRecon",
+        "summary": "Run advisory reconnaissance.",
+        "responses": {
+          "200": {
+            "description": "Recon payload."
+          }
+        }
+      }
+    }
+  },
+  "x-transport": {
+    "local": {
+      "scheme": "http",
+      "host": "127.0.0.1",
+      "port": 8000,
+      "base_url": "http://127.0.0.1:8000"
+    },
+    "cloud": {
+      "scheme": "https",
+      "auth": "bearer",
+      "base_url": "https://api.stealth-lightbeacon.example"
+    },
+    "stdin": {
+      "adapter": "stdin",
+      "purpose": "embedded fallback"
+    }
+  }
+}
