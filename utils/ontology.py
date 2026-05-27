@@ -3,10 +3,24 @@ import json
 import hashlib
 import asyncio
 import re
+import uuid
 from datetime import datetime, timezone
 from utils.vector import make_vector
 from utils.crawl_diff import compare_audit_reports
 from report.formats import normalize_report_payload
+
+SERVICE_API_VERSION = "0.2.0"
+DEFAULT_SERVICE_BASE_URL = "http://127.0.0.1:8000"
+
+_ARTIFACT_FORMAT_MAP = {
+    "json": {"name": "report.json", "media_type": "application/json"},
+    "html": {"name": "report.html", "media_type": "text/html"},
+    "llm": {"name": "report.md", "media_type": "text/markdown"},
+    "geo-xml": {"name": "report.xml", "media_type": "application/xml"},
+}
+_ARTIFACT_ALIASES = {
+    "both": ("json", "html"),
+}
 
 # Try lazy loading duckdb
 DUCKDB_AVAILABLE = False
@@ -37,7 +51,8 @@ class MockDuckDbConnection:
         self.tables = {
             "audit_runs": [],
             "audit_pages": [],
-            "audit_findings": []
+            "audit_findings": [],
+            "evaluations": [],
         }
 
     def execute(self, sql, params=None):
@@ -101,7 +116,24 @@ class MockDuckDbConnection:
                 rows = [row for row in self.tables.get("audit_runs", []) if row.get("run_id") == run_id]
                 if rows:
                     return MockQueryResult((rows[0].get("report_json"),))
-            
+        elif sql_upper.startswith("SELECT"):
+            m = re.search(
+                r"SELECT\s+(.*?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*\?",
+                sql,
+                re.IGNORECASE | re.DOTALL,
+            )
+            if m:
+                cols_str, table_name, where_col = m.groups()
+                rows = [row for row in self.tables.get(table_name, []) if row.get(where_col) == params[0]]
+                if not rows:
+                    return MockQueryResult(None)
+                cols = [col.strip() for col in cols_str.split(",")]
+                if len(cols) == 1 and cols[0] == "*":
+                    row = rows[0]
+                    return MockQueryResult(tuple(row.get(key) for key in row.keys()))
+                row = rows[0]
+                return MockQueryResult(tuple(row.get(col) for col in cols))
+
         return self
 
     def fetchone(self):
@@ -260,6 +292,30 @@ class OntologyStore:
                 metadata_json VARCHAR
             )
         """)
+        self.duck_conn.execute("""
+            CREATE TABLE IF NOT EXISTS evaluations (
+                evaluation_id VARCHAR PRIMARY KEY,
+                target_url VARCHAR,
+                profile VARCHAR,
+                output_formats_json VARCHAR,
+                max_depth INTEGER,
+                max_urls INTEGER,
+                fail_on_critical BOOLEAN,
+                budget_gate BOOLEAN,
+                accepted_at VARCHAR,
+                started_at VARCHAR,
+                completed_at VARCHAR,
+                status VARCHAR,
+                stage VARCHAR,
+                progress_percent INTEGER,
+                message VARCHAR,
+                exit_state VARCHAR,
+                terminal BOOLEAN,
+                request_json VARCHAR,
+                result_json VARCHAR,
+                artifacts_json VARCHAR
+            )
+        """)
 
     async def begin_run(self, run_id: str, target_url: str, started_at: str, options: dict):
         async with self.db_lock:
@@ -364,6 +420,315 @@ class OntologyStore:
             "vector": vector
         }
         self._insert_vector_rows([vector_row])
+
+    def _normalize_output_formats(self, output_formats: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for item in output_formats:
+            key = str(item).strip().lower()
+            if not key:
+                continue
+            expanded = _ARTIFACT_ALIASES.get(key, (key,))
+            for fmt in expanded:
+                if fmt in _ARTIFACT_FORMAT_MAP and fmt not in normalized:
+                    normalized.append(fmt)
+        if not normalized:
+            raise ValueError("At least one supported output format is required")
+        return normalized
+
+    def _build_artifact_descriptors(
+        self,
+        evaluation_id: str,
+        output_formats: list[str],
+        base_url: str = DEFAULT_SERVICE_BASE_URL,
+    ) -> list[dict]:
+        root = base_url.rstrip("/")
+        descriptors = []
+        for fmt in self._normalize_output_formats(output_formats):
+            spec = _ARTIFACT_FORMAT_MAP[fmt]
+            descriptors.append(
+                {
+                    "name": spec["name"],
+                    "kind": "report",
+                    "mediaType": spec["media_type"],
+                    "downloadUrl": f"{root}/evaluations/{evaluation_id}/artifacts/{spec['name']}",
+                }
+            )
+        return descriptors
+
+    def _load_evaluation_row(self, evaluation_id: str) -> dict:
+        row = self.duck_conn.execute(
+            """
+            SELECT evaluation_id, target_url, profile, output_formats_json, max_depth, max_urls,
+                   fail_on_critical, budget_gate, accepted_at, started_at, completed_at,
+                   status, stage, progress_percent, message, exit_state, terminal,
+                   request_json, result_json, artifacts_json
+            FROM evaluations
+            WHERE evaluation_id = ?
+            """,
+            [evaluation_id],
+        ).fetchone()
+        if not row:
+            raise ValueError(f"Missing evaluation: {evaluation_id}")
+        keys = [
+            "evaluation_id",
+            "target_url",
+            "profile",
+            "output_formats_json",
+            "max_depth",
+            "max_urls",
+            "fail_on_critical",
+            "budget_gate",
+            "accepted_at",
+            "started_at",
+            "completed_at",
+            "status",
+            "stage",
+            "progress_percent",
+            "message",
+            "exit_state",
+            "terminal",
+            "request_json",
+            "result_json",
+            "artifacts_json",
+        ]
+        return dict(zip(keys, row))
+
+    def _row_to_status_payload(self, row: dict) -> dict:
+        payload = {
+            "evaluationId": row["evaluation_id"],
+            "status": row["status"],
+            "terminal": bool(row["terminal"]),
+        }
+        if row.get("stage"):
+            payload["stage"] = row["stage"]
+        if row.get("progress_percent") is not None:
+            payload["progressPercent"] = int(row["progress_percent"])
+        if row.get("message"):
+            payload["message"] = row["message"]
+        if row.get("exit_state"):
+            payload["exitState"] = row["exit_state"]
+        return payload
+
+    def _row_to_result_payload(self, row: dict) -> dict:
+        if not row.get("result_json"):
+            raise ValueError(f"Missing terminal result for evaluation: {row['evaluation_id']}")
+        result = json.loads(row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"]
+        return result
+
+    def _derive_exit_state(self, report_payload: dict, fail_on_critical: bool, budget_gate: bool) -> str:
+        severity_counts: dict[str, int] = {}
+        for domain in report_payload.get("domains", []):
+            for issue in domain.get("issues", []):
+                severity = str(issue.get("severity", "")).lower()
+                if severity:
+                    severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        if budget_gate and float(report_payload.get("average_score", 0.0) or 0.0) < 8.0:
+            return "budget_breach"
+        if fail_on_critical and severity_counts.get("critical", 0) > 0:
+            return "failure"
+        return "success"
+
+    async def create_evaluation(
+        self,
+        request: dict,
+        evaluation_id: str | None = None,
+        accepted_at: str | None = None,
+    ) -> dict:
+        evaluation_id = evaluation_id or f"eval_{uuid.uuid4().hex[:12]}"
+        accepted_at = accepted_at or datetime.now(timezone.utc).isoformat()
+
+        target = str(request.get("target") or "").strip()
+        profile = str(request.get("profile") or "").strip()
+        output_formats = request.get("outputFormats") or []
+        if not target:
+            raise ValueError("Evaluation target is required")
+        if not profile:
+            raise ValueError("Evaluation profile is required")
+        if not isinstance(output_formats, list) or not output_formats:
+            raise ValueError("At least one output format is required")
+
+        normalized_formats = self._normalize_output_formats(output_formats)
+        request_payload = {
+            "target": target,
+            "profile": profile,
+            "outputFormats": normalized_formats,
+            "maxDepth": int(request.get("maxDepth", 1) or 1),
+            "maxUrls": int(request.get("maxUrls", 10) or 10),
+            "failOnCritical": bool(request.get("failOnCritical", False)),
+            "budgetGate": bool(request.get("budgetGate", False)),
+        }
+        async with self.db_lock:
+            self.duck_conn.execute("DELETE FROM evaluations WHERE evaluation_id = ?", [evaluation_id])
+            self.duck_conn.execute(
+                """
+                INSERT INTO evaluations (
+                    evaluation_id, target_url, profile, output_formats_json, max_depth, max_urls,
+                    fail_on_critical, budget_gate, accepted_at, started_at, completed_at, status,
+                    stage, progress_percent, message, exit_state, terminal, request_json,
+                    result_json, artifacts_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    evaluation_id,
+                    target,
+                    profile,
+                    json.dumps(normalized_formats),
+                    request_payload["maxDepth"],
+                    request_payload["maxUrls"],
+                    request_payload["failOnCritical"],
+                    request_payload["budgetGate"],
+                    accepted_at,
+                    None,
+                    None,
+                    "queued",
+                    "queued",
+                    0,
+                    "Evaluation accepted",
+                    None,
+                    False,
+                    json.dumps(request_payload),
+                    None,
+                    None,
+                ],
+            )
+        return {
+            "evaluationId": evaluation_id,
+            "status": "queued",
+            "acceptedAt": accepted_at,
+        }
+
+    async def update_evaluation_status(
+        self,
+        evaluation_id: str,
+        status: str,
+        stage: str | None = None,
+        progress_percent: int | None = None,
+        message: str | None = None,
+        exit_state: str | None = None,
+        terminal: bool | None = None,
+        started_at: str | None = None,
+        completed_at: str | None = None,
+    ) -> dict:
+        row = self._load_evaluation_row(evaluation_id)
+        started_at = started_at or row.get("started_at")
+        if started_at is None and status in {"running", "processing"}:
+            started_at = datetime.now(timezone.utc).isoformat()
+        completed_at = completed_at or row.get("completed_at")
+        if terminal and completed_at is None:
+            completed_at = datetime.now(timezone.utc).isoformat()
+        normalized_progress = None if progress_percent is None else max(0, min(100, int(progress_percent)))
+        normalized_terminal = bool(row.get("terminal")) if terminal is None else bool(terminal)
+        async with self.db_lock:
+            self.duck_conn.execute(
+                """
+                UPDATE evaluations
+                SET status = ?, stage = ?, progress_percent = ?, message = ?, exit_state = ?,
+                    terminal = ?, started_at = ?, completed_at = ?
+                WHERE evaluation_id = ?
+                """,
+                [
+                    status,
+                    stage if stage is not None else row.get("stage"),
+                    normalized_progress if normalized_progress is not None else row.get("progress_percent"),
+                    message if message is not None else row.get("message"),
+                    exit_state if exit_state is not None else row.get("exit_state"),
+                    normalized_terminal,
+                    started_at,
+                    completed_at,
+                    evaluation_id,
+                ],
+            )
+        return self._row_to_status_payload(self._load_evaluation_row(evaluation_id))
+
+    async def get_evaluation_status(self, evaluation_id: str) -> dict:
+        return self._row_to_status_payload(self._load_evaluation_row(evaluation_id))
+
+    async def complete_evaluation(
+        self,
+        evaluation_id: str,
+        report_dict: dict,
+        base_url: str = DEFAULT_SERVICE_BASE_URL,
+        completed_at: str | None = None,
+    ) -> dict:
+        row = self._load_evaluation_row(evaluation_id)
+        report_payload = normalize_report_payload(report_dict)
+        output_formats = json.loads(row["output_formats_json"]) if row.get("output_formats_json") else ["json"]
+        artifacts = self._build_artifact_descriptors(evaluation_id, output_formats, base_url=base_url)
+        started_at = row.get("started_at") or row.get("accepted_at")
+        completed_at = completed_at or datetime.now(timezone.utc).isoformat()
+        severity_counts: dict[str, int] = {}
+        findings = []
+        for domain in report_payload["domains"]:
+            for issue in domain["issues"]:
+                severity = str(issue.get("severity", "")).lower()
+                if severity:
+                    severity_counts[severity] = severity_counts.get(severity, 0) + 1
+                findings.append(
+                    {
+                        "ruleId": issue.get("id", ""),
+                        "title": issue.get("message", ""),
+                        "severity": issue.get("severity", ""),
+                        "status": "resolved" if issue.get("severity") == "pass" else "open",
+                        "description": " | ".join(
+                            part for part in [issue.get("location", ""), issue.get("remedy", "")] if part
+                        ),
+                    }
+                )
+        result_payload = {
+            "evaluationId": evaluation_id,
+            "status": "completed",
+            "summary": report_payload,
+            "severityCounts": severity_counts,
+            "findings": findings,
+            "startedAt": started_at,
+            "completedAt": completed_at,
+        }
+        exit_state = self._derive_exit_state(
+            report_payload,
+            bool(row.get("fail_on_critical")),
+            bool(row.get("budget_gate")),
+        )
+        async with self.db_lock:
+            self.duck_conn.execute(
+                """
+                UPDATE evaluations
+                SET status = ?, stage = ?, progress_percent = ?, message = ?, exit_state = ?,
+                    terminal = ?, completed_at = ?, result_json = ?, artifacts_json = ?, started_at = ?
+                WHERE evaluation_id = ?
+                """,
+                [
+                    "completed",
+                    "completed",
+                    100,
+                    "Evaluation completed",
+                    exit_state,
+                    True,
+                    completed_at,
+                    json.dumps(result_payload),
+                    json.dumps(artifacts),
+                    started_at,
+                    evaluation_id,
+                ],
+            )
+        return result_payload
+
+    async def get_evaluation_result(self, evaluation_id: str) -> dict:
+        return self._row_to_result_payload(self._load_evaluation_row(evaluation_id))
+
+    async def get_evaluation_artifacts(self, evaluation_id: str, base_url: str = DEFAULT_SERVICE_BASE_URL) -> list[dict]:
+        row = self._load_evaluation_row(evaluation_id)
+        if row.get("artifacts_json"):
+            return json.loads(row["artifacts_json"])
+        if not row.get("terminal"):
+            return []
+        output_formats = json.loads(row["output_formats_json"]) if row.get("output_formats_json") else ["json"]
+        artifacts = self._build_artifact_descriptors(evaluation_id, output_formats, base_url=base_url)
+        async with self.db_lock:
+            self.duck_conn.execute(
+                "UPDATE evaluations SET artifacts_json = ? WHERE evaluation_id = ?",
+                [json.dumps(artifacts), evaluation_id],
+            )
+        return artifacts
 
     async def get_run_report(self, run_id: str) -> dict:
         row = self.duck_conn.execute("SELECT report_json FROM audit_runs WHERE run_id = ?", [run_id]).fetchone()

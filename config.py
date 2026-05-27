@@ -55,6 +55,19 @@ KEYWORD_STUFFING_DENSITY = 0.04  # 4% single-keyword density triggers a warning
 # ─── Report ───────────────────────────────────────────────────────────────────
 REPORT_OUTPUT_DIR = "reports"
 
+# ─── Service ──────────────────────────────────────────────────────────────────
+SERVICE_DEFAULT_HOST = os.getenv("SLB_SERVICE_HOST", "127.0.0.1")
+SERVICE_DEFAULT_PORT = int(os.getenv("SLB_SERVICE_PORT", "8000"))
+SERVICE_DEFAULT_SCHEME = os.getenv("SLB_SERVICE_SCHEME", "http")
+SERVICE_DEFAULT_BASE_URL = os.getenv(
+    "SLB_SERVICE_BASE_URL",
+    f"{SERVICE_DEFAULT_SCHEME}://{SERVICE_DEFAULT_HOST}:{SERVICE_DEFAULT_PORT}",
+)
+SERVICE_REMOTE_SCHEME = os.getenv("SLB_SERVICE_REMOTE_SCHEME", "https")
+SERVICE_STDIN_ADAPTER = os.getenv("SLB_SERVICE_STDIN_ADAPTER", "stdin")
+SERVICE_STORAGE_DIR = os.getenv("SLB_SERVICE_STORAGE_DIR", ".data/service")
+SERVICE_VERSION = os.getenv("SLB_SERVICE_VERSION", "1.2.4")
+
 # ─── MCP ───────────────────────────────────────────────────────────────────────
 MCP_COMMAND = os.getenv("SLB_MCP_COMMAND", "").strip() or None
 MCP_ARGS = [arg.strip() for arg in os.getenv("SLB_MCP_ARGS", "").split() if arg.strip()]
@@ -75,4 +88,17 @@ def describe_mcp_runtime() -> dict[str, object]:
         "handshake_timeout_seconds": MCP_HANDSHAKE_TIMEOUT,
         "tool_timeout_seconds": MCP_TOOL_TIMEOUT,
         "shutdown_timeout_seconds": MCP_SHUTDOWN_TIMEOUT,
+    }
+
+
+def describe_service_connection() -> dict[str, object]:
+    """Return the canonical service connection defaults."""
+    return {
+        "default_host": SERVICE_DEFAULT_HOST,
+        "default_port": SERVICE_DEFAULT_PORT,
+        "default_scheme": SERVICE_DEFAULT_SCHEME,
+        "default_base_url": SERVICE_DEFAULT_BASE_URL,
+        "remote_scheme": SERVICE_REMOTE_SCHEME,
+        "stdin_adapter": SERVICE_STDIN_ADAPTER,
+        "service_version": SERVICE_VERSION,
     }
