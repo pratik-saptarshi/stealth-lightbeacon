@@ -1,6 +1,6 @@
 # Stealth Lightbeacon — Architecture & Technical Workflows
 
-This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine. It is kept in sync with the `v1.2.4` release train.
+This document details the architectural specifications, component boundaries, and non-blocking asynchronous data-flow patterns governing the **Stealth Lightbeacon** engine. It is kept in sync with the `v1.2.5` release train.
 
 ---
 
@@ -156,7 +156,7 @@ The repository now validates pinned dependencies before test execution:
 2. `scripts/validate_dependencies.py` calls `piptools compile` against the live PyPI index to catch incompatible pins before merge.
 3. `.github/workflows/ci.yml` installs dependencies with `--extra-index-url https://pypi.org/simple`, validates the lock state, then runs the test suite on Python 3.11.
 4. `pre-commit run dependency-validation --all-files` mirrors the CI check locally so dependency drift is caught early.
-5. The current release notes for `v1.2.4` live in `changelog.md`, and the compatibility aliases point to the same history.
+5. The current release notes for `v1.2.5` live in `changelog.md`, and the compatibility aliases point to the same history.
 
 The prioritized remediation roadmap and phase validation gates live in
 [`docs/architecture-beads-plan.md`](docs/architecture-beads-plan.md).

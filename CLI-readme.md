@@ -2,7 +2,7 @@
 
 This repository exposes one primary command: `python main.py evaluate`.
 
-The runtime identity and docs surface are aligned with the `v1.2.4` release train.
+The runtime identity and docs surface are aligned with the `v1.2.5` release train.
 
 ## Quick Start
 
@@ -101,7 +101,7 @@ the dual-output mode is used.
 
 ## Release Notes
 
-- The `v1.2.4` release keeps the CLI contract, environment variable surface, and report outputs aligned.
+- The `v1.2.5` release publishes the canonical HTTP service, contract validator, and end-to-end smoke coverage alongside the CLI.
 - The canonical release history lives in `changelog.md`.
 
 ## Shared Axioms

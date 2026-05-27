@@ -4,6 +4,7 @@ import hashlib
 import asyncio
 import re
 import uuid
+import threading
 from datetime import datetime, timezone
 from utils.vector import make_vector
 from utils.crawl_diff import compare_audit_reports
@@ -204,6 +205,7 @@ class OntologyStore:
         
         # Enforce single-writer locks for DuckDB
         self.db_lock = asyncio.Lock()
+        self.duck_lock = threading.RLock()
         self._vector_buffer = []
         self._vector_flush_threshold = 25
         
@@ -227,6 +229,18 @@ class OntologyStore:
                 self.vector_store = FallbackVectorStore()
         else:
             self.vector_store = FallbackVectorStore()
+
+    def _duck_execute(self, sql, params=None):
+        if params is None:
+            params = []
+        with self.duck_lock:
+            return self.duck_conn.execute(sql, params)
+
+    def _duck_fetchone(self, sql, params=None):
+        if params is None:
+            params = []
+        with self.duck_lock:
+            return self.duck_conn.execute(sql, params).fetchone()
 
     def _insert_vector_rows(self, rows: list[dict]) -> None:
         if not rows:
@@ -254,7 +268,7 @@ class OntologyStore:
         self._insert_vector_rows(rows)
 
     def _initialize_duckdb_schema(self):
-        self.duck_conn.execute("""
+        self._duck_execute("""
             CREATE TABLE IF NOT EXISTS audit_runs (
                 run_id VARCHAR PRIMARY KEY,
                 target_url VARCHAR,
@@ -267,7 +281,7 @@ class OntologyStore:
                 options_json VARCHAR
             )
         """)
-        self.duck_conn.execute("""
+        self._duck_execute("""
             CREATE TABLE IF NOT EXISTS audit_pages (
                 run_id VARCHAR,
                 page_url VARCHAR,
@@ -279,7 +293,7 @@ class OntologyStore:
                 metadata_json VARCHAR
             )
         """)
-        self.duck_conn.execute("""
+        self._duck_execute("""
             CREATE TABLE IF NOT EXISTS audit_findings (
                 run_id VARCHAR,
                 page_url VARCHAR,
@@ -292,7 +306,7 @@ class OntologyStore:
                 metadata_json VARCHAR
             )
         """)
-        self.duck_conn.execute("""
+        self._duck_execute("""
             CREATE TABLE IF NOT EXISTS evaluations (
                 evaluation_id VARCHAR PRIMARY KEY,
                 target_url VARCHAR,
@@ -319,8 +333,8 @@ class OntologyStore:
 
     async def begin_run(self, run_id: str, target_url: str, started_at: str, options: dict):
         async with self.db_lock:
-            self.duck_conn.execute("DELETE FROM audit_runs WHERE run_id = ?", [run_id])
-            self.duck_conn.execute(
+            self._duck_execute("DELETE FROM audit_runs WHERE run_id = ?", [run_id])
+            self._duck_execute(
                 "INSERT INTO audit_runs (run_id, target_url, started_at, created_at, options_json) VALUES (?, ?, ?, ?, ?)",
                 [run_id, target_url, started_at, started_at, json.dumps(options)]
             )
@@ -345,7 +359,7 @@ class OntologyStore:
         }
         
         async with self.db_lock:
-            self.duck_conn.execute(
+            self._duck_execute(
                 "INSERT INTO audit_pages (run_id, page_url, status, response_time_ms, page_hash, title, headers_json, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 [run_id, page_url, status_code, response_time_ms, page_hash, title, json.dumps(headers), json.dumps(metadata)]
             )
@@ -374,7 +388,7 @@ class OntologyStore:
             metadata = {}
             
         async with self.db_lock:
-            self.duck_conn.execute(
+            self._duck_execute(
                 "INSERT INTO audit_findings (run_id, page_url, domain_id, issue_id, severity, message, location, remedy, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [run_id, page_url, domain_id, issue_id, severity, message, location, remedy, json.dumps(metadata)]
             )
@@ -400,7 +414,7 @@ class OntologyStore:
         completed_at = datetime.now(timezone.utc).isoformat()
         
         async with self.db_lock:
-            self.duck_conn.execute(
+            self._duck_execute(
                 "UPDATE audit_runs SET completed_at = ?, page_count = ?, domain_count = ?, report_json = ? WHERE run_id = ?",
                 [completed_at, page_count, domain_count, json.dumps(report_payload), run_id]
             )
@@ -456,7 +470,7 @@ class OntologyStore:
         return descriptors
 
     def _load_evaluation_row(self, evaluation_id: str) -> dict:
-        row = self.duck_conn.execute(
+        row = self._duck_fetchone(
             """
             SELECT evaluation_id, target_url, profile, output_formats_json, max_depth, max_urls,
                    fail_on_critical, budget_gate, accepted_at, started_at, completed_at,
@@ -466,7 +480,7 @@ class OntologyStore:
             WHERE evaluation_id = ?
             """,
             [evaluation_id],
-        ).fetchone()
+        )
         if not row:
             raise ValueError(f"Missing evaluation: {evaluation_id}")
         keys = [
@@ -558,8 +572,8 @@ class OntologyStore:
             "budgetGate": bool(request.get("budgetGate", False)),
         }
         async with self.db_lock:
-            self.duck_conn.execute("DELETE FROM evaluations WHERE evaluation_id = ?", [evaluation_id])
-            self.duck_conn.execute(
+            self._duck_execute("DELETE FROM evaluations WHERE evaluation_id = ?", [evaluation_id])
+            self._duck_execute(
                 """
                 INSERT INTO evaluations (
                     evaluation_id, target_url, profile, output_formats_json, max_depth, max_urls,
@@ -619,7 +633,7 @@ class OntologyStore:
         normalized_progress = None if progress_percent is None else max(0, min(100, int(progress_percent)))
         normalized_terminal = bool(row.get("terminal")) if terminal is None else bool(terminal)
         async with self.db_lock:
-            self.duck_conn.execute(
+            self._duck_execute(
                 """
                 UPDATE evaluations
                 SET status = ?, stage = ?, progress_percent = ?, message = ?, exit_state = ?,
@@ -689,7 +703,7 @@ class OntologyStore:
             bool(row.get("budget_gate")),
         )
         async with self.db_lock:
-            self.duck_conn.execute(
+            self._duck_execute(
                 """
                 UPDATE evaluations
                 SET status = ?, stage = ?, progress_percent = ?, message = ?, exit_state = ?,
@@ -724,14 +738,14 @@ class OntologyStore:
         output_formats = json.loads(row["output_formats_json"]) if row.get("output_formats_json") else ["json"]
         artifacts = self._build_artifact_descriptors(evaluation_id, output_formats, base_url=base_url)
         async with self.db_lock:
-            self.duck_conn.execute(
+            self._duck_execute(
                 "UPDATE evaluations SET artifacts_json = ? WHERE evaluation_id = ?",
                 [json.dumps(artifacts), evaluation_id],
             )
         return artifacts
 
     async def get_run_report(self, run_id: str) -> dict:
-        row = self.duck_conn.execute("SELECT report_json FROM audit_runs WHERE run_id = ?", [run_id]).fetchone()
+        row = self._duck_fetchone("SELECT report_json FROM audit_runs WHERE run_id = ?", [run_id])
         if not row or row[0] is None:
             raise ValueError(f"Missing audit run: {run_id}")
         raw = row[0]
@@ -765,7 +779,7 @@ class OntologyStore:
     def health(self) -> dict:
         """Returns readiness checks for DuckDB and the Vector Store."""
         try:
-            self.duck_conn.execute("SELECT 1")
+            self._duck_execute("SELECT 1")
             duck_ok = True
         except Exception:
             duck_ok = False

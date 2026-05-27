@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.2.5
+
+### Service Release and Contract Publication
+
+- Published the canonical HTTP service surface for local and remote clients, including health, capabilities, compatibility, evaluation lifecycle, artifacts, and recon routes.
+- Added the documented release branch `release/service-unified` with the service core, evaluation lifecycle, and contract validation series committed separately for auditability.
+- Added the smoke test that boots the service, exercises the core routes end to end, and verifies a local audit completes successfully.
+- Harmonized the canonical contract snapshot, drift validator, CLI defaults, and runtime identity strings around the `127.0.0.1:8000` local loopback target.
+- Serialized DuckDB access inside the shared ontology store so threaded HTTP polling and background evaluation writes stay consistent in the subprocess service path.
+
+### Validation and Sanity
+
+- Ran the targeted config, contract, alignment, and smoke tests on the release branch.
+- Verified the service boots, accepts evaluation requests, and returns terminal results and artifacts for a local target.
+
 ## v1.2.4
 
 ### Backlog, Release, and Coverage Hardening
