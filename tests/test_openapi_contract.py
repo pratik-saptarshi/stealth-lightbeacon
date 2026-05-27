@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
+from utils.service_contract import build_service_contract
 from contracts.backend_api import CONTRACT_DESCRIPTION, build_openapi_document
 
 
@@ -9,10 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "backend-api.openapi.json"
 
 
-def test_generated_contract_has_required_desktop_paths_and_schemas():
+def test_generated_contract_matches_service_contract():
     doc = build_openapi_document()
 
+    assert doc == build_service_contract()
     assert doc["openapi"] == "3.1.0"
+    assert doc["info"]["title"] == "Stealth Lightbeacon Service API"
     assert doc["info"]["description"] == CONTRACT_DESCRIPTION
 
     paths = doc["paths"]
@@ -24,50 +26,14 @@ def test_generated_contract_has_required_desktop_paths_and_schemas():
     assert "/evaluations/{evaluation_id}/artifacts" in paths
     assert "/recon" in paths
 
-    schemas = doc["components"]["schemas"]
-    required = {
-        "HealthResponse",
-        "CompatibilityResponse",
-        "CapabilitiesResponse",
-        "CreateEvaluationRequest",
-        "CreateEvaluationResponse",
-        "EvaluationStatusResponse",
-        "EvaluationResultResponse",
-        "ArtifactDescriptor",
-        "ReconRequest",
-        "ReconResponse",
-        "ApiError",
-    }
-    assert required.issubset(set(schemas))
 
-
-def test_capabilities_and_recon_examples_track_existing_backend_seams():
+def test_contract_tracks_transport_surface():
     doc = build_openapi_document()
 
-    health_example = doc["paths"]["/health"]["get"]["responses"]["200"]["content"][
-        "application/json"
-    ]["example"]
-    assert health_example["authRequired"] is False
-    assert health_example["compatibility"]["minimumDesktopVersion"] == "0.1.0"
-
-    capabilities_example = doc["paths"]["/capabilities"]["get"]["responses"]["200"][
-        "content"
-    ]["application/json"]["example"]
-    assert capabilities_example["evaluationProfiles"] == list(SUPPORTED_PROFILES)
-    assert capabilities_example["outputFormats"] == list(SUPPORTED_OUTPUT_FORMATS)
-    assert capabilities_example["supportsRecon"] is True
-    assert capabilities_example["supportsArtifacts"] is True
-
-    recon_example = doc["paths"]["/recon"]["post"]["responses"]["200"]["content"][
-        "application/json"
-    ]["example"]
-    assert recon_example["target"] == "https://example.com"
-    assert recon_example["recommendation"] == "stealth"
-    assert recon_example["posture"] == "browser"
-    assert recon_example["confidence"] == 0.9
-    assert "cloudflare" in recon_example["evidence"]
-    assert "cloudflare" in recon_example["evidenceSummary"]
-    assert recon_example["autoSelectAllowed"] is True
+    transport = doc["x-transport"]
+    assert transport["local"]["base_url"] == "http://127.0.0.1:8000"
+    assert transport["cloud"]["scheme"] == "https"
+    assert transport["stdin"]["adapter"] == "stdin"
 
 
 def test_exported_snapshot_matches_generated_contract():
