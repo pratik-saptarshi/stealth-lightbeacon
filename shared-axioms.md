@@ -3,8 +3,8 @@
 These three repositories are one system split into separate boundaries:
 
 - Backend: canonical audit engine, generated contract, and report semantics.
-- Desktop Tauri: trusted transport, local companion lifecycle, operator UX, and
-  release packaging.
+- Desktop Tauri: trusted transport, local companion lifecycle, operator UX,
+  and release packaging.
 - Browser addon: local-first browser runtime, DOM extraction, and popup/
   side-panel UX.
 
@@ -28,6 +28,8 @@ These three repositories are one system split into separate boundaries:
 | User-facing UI | Report artifacts and CLI output | React operator shell | Popup and side-panel UI |
 | Release gate | Docs and artifacts stay aligned | Contract sync plus Tauri build | Unit, integration, UI-load, and browser smoke |
 | Optional backend coupling | N/A | Local and remote policy | Opt-in backend bridge |
+| Canonical port | `127.0.0.1:8000` loopback default, overridable for remote/cloud | UI defaults should preserve `8000` for local mode | Endpoint+port composition should target the same `8000` service default |
+| Transport rules | HTTP for the service, stdin for adapter embedding | Local, standalone, and remote deployment modes | Loopback-first HTTP, remote HTTPS, stdin adapter fallback |
 
 ## Working Rule
 
