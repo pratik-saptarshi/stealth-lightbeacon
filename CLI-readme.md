@@ -104,6 +104,12 @@ the dual-output mode is used.
 - The `v1.2.4` release keeps the CLI contract, environment variable surface, and report outputs aligned.
 - The canonical release history lives in `changelog.md`.
 
+## Shared Axioms
+
+Use [shared-axioms.md](shared-axioms.md) as the cross-repo boundary contract
+for the backend, desktop, and browser-addon repos. It records which repo owns
+which semantics and which validation gate must protect each boundary.
+
 ## Output
 
 - JSON reports are written to `reports/report.json` unless `--out` overrides the directory.
