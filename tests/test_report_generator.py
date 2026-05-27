@@ -26,7 +26,7 @@ def test_report_generator_writes_escaped_html(tmp_path):
     assert html_path.exists()
 
     html = html_path.read_text(encoding="utf-8")
-    assert "Audit Engine Version:</strong> v1.2.4" in html
+    assert "Audit Engine Version:</strong> v1.2.5" in html
     assert "&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;" in html
     assert "<script>alert('x')</script>" not in html
     assert "Technical SEO" in html
