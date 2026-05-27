@@ -7,6 +7,7 @@ Source inputs:
 - Current repository state
 - Current architecture guide and repository state
 - Current architecture doc: `docs/architecture.md`
+- Cross-repo execution mirror: `docs/roadmap/roadmap.md`
 
 ## BEADS Legend
 
@@ -28,6 +29,22 @@ The current repo state validates the first three architecture phases.
 | Phase 2 | Complete | MCP mode rejects mutable runtime downloads and now exposes the resolved runtime contract. | None in this tracker. |
 | Phase 3 | Open | Persistence still performs row-level writes during evaluation, and the failure/backpressure path is not fully hardened. | Queue/batch persistence off the crawl hot path and cover failure isolation. |
 | Phase 4 | Open | Docs and CI recipes are aligned, but the release/BOM drift guard and low-coverage seams still need dedicated tests. | Add drift checks and raise coverage on the weak branches. |
+
+## Execution Map Mirror
+
+The service-contract roadmap now uses the same Beads IDs in both the docs and
+the local tracker. Mirror those IDs here so the architecture plan and tracker
+stay aligned.
+
+| Capability | Beads ID | Child IDs | Status |
+|---|---|---|---|
+| CAP-1 Service contract and transport unification | `stealth-lightbeacon-fw9` | `stealth-lightbeacon-fw9.1`, `stealth-lightbeacon-fw9.2`, `stealth-lightbeacon-fw9.3` | Open |
+| CAP-2 Evaluation lifecycle and artifact delivery | `stealth-lightbeacon-m0q` | `stealth-lightbeacon-m0q.1`, `stealth-lightbeacon-m0q.2`, `stealth-lightbeacon-m0q.3`, `stealth-lightbeacon-m0q.4`, `stealth-lightbeacon-m0q.5` | Open |
+| CAP-3 Client alignment | `stealth-lightbeacon-ds8` | `stealth-lightbeacon-ds8.1`, `stealth-lightbeacon-ds8.2`, `stealth-lightbeacon-ds8.3` | Open |
+| CAP-4 Validation and release hardening | `stealth-lightbeacon-epr` | `stealth-lightbeacon-epr.1`, `stealth-lightbeacon-epr.2`, `stealth-lightbeacon-epr.3` | Open |
+
+The canonical decomposition and task details live in
+[`docs/roadmap/roadmap.md`](docs/roadmap/roadmap.md).
 
 ## Feature Map
 

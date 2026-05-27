@@ -160,3 +160,22 @@ The repository now validates pinned dependencies before test execution:
 
 The prioritized remediation roadmap and phase validation gates live in
 [`docs/architecture-beads-plan.md`](docs/architecture-beads-plan.md).
+
+---
+
+## 7. Client and Service Alignment
+
+The repo now also carries the cross-client contract snapshot and connection
+rules used to align the browser addon and desktop shell with the Python
+service:
+
+- `contracts/backend-api.openapi.json` is the canonical HTTP contract snapshot.
+- `docs/client-service-architecture.md` compares the browser addon, desktop
+  Tauri app, and Python backend as one system.
+- `docs/roadmap/roadmap.md` is the durable decomposition hub for capabilities,
+  epics, features, user stories, tasks, and validation gates.
+- `127.0.0.1:8000` is the canonical local companion target.
+- Remote connections must use HTTPS.
+- `stdin` is adapter-only and does not replace the HTTP service contract.
+- Desktop standalone mode is an embedded runtime path, not a separate network
+  API.

@@ -11,6 +11,12 @@ renderers, and release/docs contracts for CI and human operators.
 - `config.py`: shared runtime constants, headers, and environment loading.
 - `report/formats.py`: canonical normalized payload and renderer layer.
 - `report/generator.py`: HTML report generator.
+- `contracts/backend-api.openapi.json`: canonical HTTP contract for the
+  service boundary shared with desktop and browser clients.
+- `docs/client-service-architecture.md`: cross-client comparison and
+  connection-matrix reference.
+- `docs/roadmap/roadmap.md`: durable roadmap hub with capability, epic,
+  feature, user-story, task, and test decomposition.
 - `changelog.md`: canonical release history for the active train.
 - `bill-of-material.md`: generated BOM and dependency metadata.
 - `shared-axioms.md`: cross-repo boundary ownership and validation axioms.
@@ -26,6 +32,7 @@ renderers, and release/docs contracts for CI and human operators.
 | `modules/` | Shared evaluator layer, DOM adapters, and domain checks for SEO, accessibility, performance, UX, Drupal, and AEO/GEO. | [View Map](modules/codemap.md) |
 | `modules/scraping/` | Pluggable acquisition strategies with SSRF-aware fallback behavior. | [View Map](modules/scraping/codemap.md) |
 | `report/` | Normalized report payload and rendering pipeline for JSON, markdown, XML, and HTML output. | [View Map](report/codemap.md) |
+| `contracts/` | Backend service contract snapshots and compatibility payload definitions. | Canonical API source |
 | `utils/` | Shared infrastructure for vectorization, storage, SSRF protection, browser reuse, diffing, recon, budgets, and BOM maintenance. | [View Map](utils/codemap.md) |
 | `ci-recipes/` | Provider-specific CI recipes for running the audit pipeline in GitHub Actions, Bitbucket, and GitLab. | [View Map](ci-recipes/codemap.md) |
 

@@ -29,3 +29,11 @@ ARC7-REVIEW-*.md
 public-runs/
 public-tests/
 reports/public-audit/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/
+.claude/
+CLAUDE.md
