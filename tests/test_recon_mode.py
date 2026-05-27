@@ -38,3 +38,21 @@ async def test_recon_defaults_to_http_for_benign_sites():
     assert recommendation.recommended_engine == "http"
     assert recommendation.posture == "http"
     assert recommendation.evidence
+
+
+@pytest.mark.asyncio
+async def test_recon_uses_status_fallback_and_closes_client():
+    client = MagicMock()
+    response = MagicMock()
+    response.status_code = 429
+    response.headers = {"Server": "nginx"}
+    response.text = "<html><body>throttled</body></html>"
+    client.get = AsyncMock(return_value=response)
+    client.aclose = AsyncMock()
+
+    with patch("httpx.AsyncClient", return_value=client):
+        recommendation = await ReconAdvisor().inspect("https://example.com")
+
+    assert recommendation.recommended_engine == "stealth"
+    assert recommendation.posture == "browser"
+    client.aclose.assert_awaited_once()

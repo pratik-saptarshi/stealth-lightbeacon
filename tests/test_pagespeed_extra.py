@@ -71,3 +71,50 @@ async def test_pagespeed_cache_helpers_tolerate_backend_errors(tmp_path, monkeyp
 
     assert await evaluator._read_from_cache("https://example.com") is None
     evaluator._write_to_cache("https://example.com", {"ok": True})
+
+
+@pytest.mark.asyncio
+async def test_pagespeed_evaluate_creates_and_closes_client(tmp_path, monkeypatch):
+    evaluator = PagespeedEvaluator(cache_dir=str(tmp_path))
+    monkeypatch.setattr(evaluator, "_read_from_cache", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        evaluator,
+        "_fetch_psi_with_backoff",
+        AsyncMock(return_value={"lighthouseResult": {"categories": {"performance": {"score": 0.5}}}}),
+    )
+
+    client = MagicMock()
+    client.aclose = AsyncMock()
+    monkeypatch.setattr("modules.pagespeed.httpx.AsyncClient", MagicMock(return_value=client))
+
+    result = await evaluator.evaluate("", "https://example.com/fresh")
+
+    assert result.domain == "PageSpeed & Performance"
+    client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_pagespeed_fetch_uses_api_key_and_raises_after_retries(tmp_path, monkeypatch):
+    evaluator = PagespeedEvaluator(cache_dir=str(tmp_path))
+    client = MagicMock()
+    client.get = AsyncMock(return_value=_FakeResponse(429))
+    monkeypatch.setattr("modules.pagespeed.config.PAGESPEED_API_KEY", "secret-key")
+    monkeypatch.setattr("modules.pagespeed.asyncio.sleep", AsyncMock())
+
+    with pytest.raises(RuntimeError):
+        await evaluator._fetch_psi_with_backoff("https://example.com", client)
+
+    assert client.get.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_pagespeed_fetch_raises_after_three_rate_limits(tmp_path, monkeypatch):
+    evaluator = PagespeedEvaluator(cache_dir=str(tmp_path))
+    client = MagicMock()
+    client.get = AsyncMock(return_value=_FakeResponse(429))
+    monkeypatch.setattr("modules.pagespeed.asyncio.sleep", AsyncMock())
+
+    with pytest.raises(RuntimeError):
+        await evaluator._fetch_psi_with_backoff("https://example.com", client)
+
+    assert client.get.await_count == 3

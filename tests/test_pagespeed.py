@@ -97,3 +97,22 @@ async def test_pagespeed_evaluator_cwv_scoring():
     assert "R-PERF-CLS-WARN" in issue_ids
     assert "R-PERF-INP-CRIT" in issue_ids
     assert "R-PERF-TTFB-WARN" in issue_ids
+
+
+def test_pagespeed_evaluator_defaults_when_payload_is_sparse():
+    evaluator = PagespeedEvaluator(cache_dir=TEST_CACHE_DIR)
+
+    result = evaluator._parse_psi_results({})
+
+    assert result.score == pytest.approx(5.8)
+    assert result.metadata["lighthouse_performance"] == 50.0
+    assert result.metadata["lcp_ms"] == 2800
+    assert result.metadata["cls"] == 0.15
+    assert result.metadata["inp_ms"] == 220
+    assert result.metadata["ttfb_ms"] == 900
+    assert [issue.id for issue in result.issues] == [
+        "R-PERF-LCP-WARN",
+        "R-PERF-CLS-WARN",
+        "R-PERF-INP-WARN",
+        "R-PERF-TTFB-WARN",
+    ]

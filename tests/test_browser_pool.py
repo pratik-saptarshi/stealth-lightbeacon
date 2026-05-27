@@ -55,3 +55,26 @@ async def test_browser_pool_lifecycle():
         mock_browser.close.assert_called_once()
         mock_playwright.stop.assert_called_once()
         mock_proxy_instance.stop.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_browser_pool_requires_playwright_and_swallows_shutdown_errors(monkeypatch):
+    monkeypatch.setattr(BrowserPool, "_instance", None, raising=False)
+    pool = BrowserPool()
+
+    with patch("utils.browser_pool.PLAYWRIGHT_AVAILABLE", False):
+        with pytest.raises(RuntimeError, match="Playwright is not installed"):
+            await pool.get_browser()
+
+    pool.browser = AsyncMock()
+    pool.browser.close.side_effect = RuntimeError("browser close failed")
+    pool.playwright = AsyncMock()
+    pool.playwright.stop.side_effect = RuntimeError("playwright stop failed")
+    pool.proxy = AsyncMock()
+    pool.proxy.stop.side_effect = RuntimeError("proxy stop failed")
+
+    await pool.close()
+
+    assert pool.browser is None
+    assert pool.playwright is None
+    assert pool.proxy is None

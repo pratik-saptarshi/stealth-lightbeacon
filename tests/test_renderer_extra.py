@@ -74,6 +74,23 @@ async def test_ssrf_local_proxy_start_stop_and_proxy_url(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ssrf_local_proxy_stop_without_server_and_malformed_requests():
+    proxy = SSRFLocalProxy(guard=MagicMock())
+
+    await proxy.stop()
+
+    empty_reader = _FakeReader([])
+    short_writer = _FakeWriter()
+    await proxy.handle_connection(empty_reader, short_writer)
+    assert short_writer.close_called is True
+
+    short_reader = _FakeReader([b"GET\r\n"])
+    short_writer = _FakeWriter()
+    await proxy.handle_connection(short_reader, short_writer)
+    assert short_writer.close_called is True
+
+
+@pytest.mark.asyncio
 async def test_ssrf_local_proxy_handles_connect_and_http_requests(monkeypatch):
     guard = MagicMock()
     guard.validate = AsyncMock()
@@ -109,6 +126,35 @@ async def test_ssrf_local_proxy_handles_connect_and_http_requests(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ssrf_local_proxy_connect_default_port_and_http_missing_host(monkeypatch):
+    guard = MagicMock()
+    guard.validate = AsyncMock()
+    guard.get_pinned_address.return_value = "93.184.216.34"
+    proxy = SSRFLocalProxy(guard=guard)
+
+    server_reader = _FakeReader()
+    server_writer = _FakeWriter()
+
+    async def fake_open_connection(host, port):
+        assert host == "93.184.216.34"
+        assert port == 443
+        return server_reader, server_writer
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open_connection)
+    monkeypatch.setattr(SSRFLocalProxy, "tunnel", AsyncMock(return_value=None))
+
+    connect_reader = _FakeReader([b"CONNECT example.com HTTP/1.1\r\n"])
+    connect_writer = _FakeWriter()
+    await proxy.handle_connection(connect_reader, connect_writer)
+    guard.validate.assert_awaited_once_with("https://example.com:443")
+
+    missing_host_reader = _FakeReader([b"GET / HTTP/1.1\r\n"])
+    missing_host_writer = _FakeWriter()
+    await proxy.handle_connection(missing_host_reader, missing_host_writer)
+    assert missing_host_writer.close_called is True
+
+
+@pytest.mark.asyncio
 async def test_ssrf_local_proxy_handles_invalid_and_blocked_requests():
     guard = MagicMock()
     guard.validate = AsyncMock(side_effect=ValueError("blocked"))
@@ -135,6 +181,19 @@ async def test_ssrf_local_proxy_tunnel_writes_until_eof():
     await proxy.tunnel(reader, writer)
 
     assert writer.writes == [b"chunk-1", b"chunk-2"]
+    assert writer.close_called is True
+
+
+@pytest.mark.asyncio
+async def test_ssrf_local_proxy_tunnel_handles_reader_errors():
+    proxy = SSRFLocalProxy(guard=MagicMock())
+
+    class _ExplodingReader:
+        async def read(self, _size):
+            raise RuntimeError("boom")
+
+    writer = _FakeWriter()
+    await proxy.tunnel(_ExplodingReader(), writer)
     assert writer.close_called is True
 
 
@@ -179,4 +238,32 @@ async def test_playwright_renderer_renders_and_revalidates_final_url(monkeypatch
     assert guard.validate.await_args_list[1].args == ("https://example.com/rendered",)
     browser.new_context.assert_awaited_once()
     page.goto.assert_awaited_once_with("https://example.com/rendered", wait_until="networkidle")
+    context.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_playwright_renderer_uses_string_final_url(monkeypatch):
+    monkeypatch.setattr(renderer, "PLAYWRIGHT_AVAILABLE", True)
+
+    guard = MagicMock()
+    guard.validate = AsyncMock()
+    browser = AsyncMock()
+    context = AsyncMock()
+    page = AsyncMock()
+    page.url = "https://example.com/final"
+    page.content = AsyncMock(return_value="<html><body>rendered</body></html>")
+    page.goto = AsyncMock()
+    context.new_page = AsyncMock(return_value=page)
+    context.close = AsyncMock()
+    browser.new_context = AsyncMock(return_value=context)
+    fake_pool = MagicMock()
+    fake_pool.get_browser = AsyncMock(return_value=browser)
+
+    with patch("utils.ssrf_guard.SSRFGuard", return_value=guard), patch(
+        "utils.browser_pool.BrowserPool.get_instance", return_value=fake_pool
+    ):
+        html = await PlaywrightRenderer().render("https://example.com/rendered")
+
+    assert html == "<html><body>rendered</body></html>"
+    assert guard.validate.await_args_list[1].args == ("https://example.com/final",)
     context.close.assert_awaited_once()

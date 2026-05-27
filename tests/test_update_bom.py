@@ -49,3 +49,12 @@ def test_update_bom_reports_missing_anchors(tmp_path):
     reqs.write_text("requests==2.33.0\n", encoding="utf-8")
 
     assert update_bom(str(bom), str(reqs)) is False
+
+
+def test_update_bom_reports_empty_requirements_file(tmp_path):
+    bom = tmp_path / "bom.md"
+    reqs = tmp_path / "requirements.txt"
+    bom.write_text("<!-- LIBRARIES_START -->\n<!-- LIBRARIES_END -->\n", encoding="utf-8")
+    reqs.write_text("\n# only comments\n", encoding="utf-8")
+
+    assert update_bom(str(bom), str(reqs)) is False

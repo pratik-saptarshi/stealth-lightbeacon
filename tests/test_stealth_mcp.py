@@ -53,6 +53,23 @@ def test_stealth_mcp_rejects_mutable_runtime_download_default(monkeypatch):
         stealth_mcp.StealthMcpLayer()
 
 
+def test_stealth_mcp_accepts_pinned_versioned_package(monkeypatch):
+    monkeypatch.setattr(stealth_mcp.config, "MCP_COMMAND", "npx")
+    monkeypatch.setattr(
+        stealth_mcp.config,
+        "MCP_COMMAND_ARGS",
+        ["-y", "@modelcontextprotocol/server-playwright@1.2.3"],
+    )
+
+    scraper = stealth_mcp.StealthMcpLayer()
+
+    assert scraper.describe_runtime()["command"] == "npx"
+    assert scraper.describe_runtime()["args"] == [
+        "-y",
+        "@modelcontextprotocol/server-playwright@1.2.3",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_stealth_mcp_scrape_happy_path(monkeypatch):
     monkeypatch.setattr(stealth_mcp.config, "MCP_COMMAND", "/usr/bin/mcp-test")
@@ -76,7 +93,7 @@ async def test_stealth_mcp_scrape_happy_path(monkeypatch):
 
     monkeypatch.setattr(stealth_mcp.asyncio, "create_subprocess_exec", _create_subprocess_exec)
     guard_mock = AsyncMock()
-    guard_mock.validate.return_value = asyncio.sleep(0)
+    guard_mock.validate = AsyncMock(return_value=None)
     monkeypatch.setattr(stealth_mcp, "SSRFGuard", lambda allow_private=False: guard_mock)
 
     scraper = stealth_mcp.StealthMcpLayer()

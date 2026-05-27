@@ -4,6 +4,7 @@ import hashlib
 import asyncio
 import re
 import uuid
+from queue import Full, Queue
 import threading
 from datetime import datetime, timezone
 from utils.vector import make_vector
@@ -22,6 +23,7 @@ _ARTIFACT_FORMAT_MAP = {
 _ARTIFACT_ALIASES = {
     "both": ("json", "html"),
 }
+DEFAULT_PERSISTENCE_QUEUE_SIZE = 128
 
 # Try lazy loading duckdb
 DUCKDB_AVAILABLE = False
@@ -195,7 +197,12 @@ class LanceDbStore:
 
 class OntologyStore:
     """Coordinates relational storage (DuckDB / Memory Mock) and semantic index (LanceDB / Memory)."""
-    def __init__(self, root_dir=".data", vector_dimensions=64):
+    def __init__(
+        self,
+        root_dir=".data",
+        vector_dimensions=64,
+        persistence_queue_size=DEFAULT_PERSISTENCE_QUEUE_SIZE,
+    ):
         self.root_dir = root_dir
         os.makedirs(self.root_dir, exist_ok=True)
         
@@ -206,8 +213,11 @@ class OntologyStore:
         # Enforce single-writer locks for DuckDB
         self.db_lock = asyncio.Lock()
         self.duck_lock = threading.RLock()
-        self._vector_buffer = []
-        self._vector_flush_threshold = 25
+        self._persistence_queue: Queue = Queue(maxsize=max(1, int(persistence_queue_size)))
+        self._persistence_worker: threading.Thread | None = None
+        self._persistence_worker_lock = threading.Lock()
+        self._persistence_stop_token = object()
+        self._persistence_failures = 0
         
         # Initialize DuckDB or Mock
         if DUCKDB_AVAILABLE:
@@ -255,17 +265,67 @@ class OntologyStore:
                 except Exception:
                     pass
 
-    async def _queue_vector_row(self, row: dict, force: bool = False):
-        self._vector_buffer.append(row)
-        if force or len(self._vector_buffer) >= self._vector_flush_threshold:
-            await self._flush_vector_buffer()
+    def _ensure_persistence_worker(self) -> None:
+        with self._persistence_worker_lock:
+            if self._persistence_worker and self._persistence_worker.is_alive():
+                return
+            self._persistence_worker = threading.Thread(
+                target=self._persistence_worker_loop,
+                name="ontology-persistence",
+                daemon=True,
+            )
+            self._persistence_worker.start()
 
-    async def _flush_vector_buffer(self):
-        if not self._vector_buffer:
+    async def _enqueue_persistence_item(self, item: dict) -> None:
+        self._ensure_persistence_worker()
+        try:
+            self._persistence_queue.put_nowait(item)
+        except Full:
+            await asyncio.to_thread(self._persistence_queue.put, item)
+
+    def _enqueue_persistence_item_sync(self, item: dict) -> None:
+        self._ensure_persistence_worker()
+        try:
+            self._persistence_queue.put_nowait(item)
+        except Full:
+            self._persistence_queue.put(item)
+
+    async def _drain_persistence_queue(self) -> None:
+        if self._persistence_worker is None:
             return
-        rows = self._vector_buffer
-        self._vector_buffer = []
-        self._insert_vector_rows(rows)
+        await asyncio.to_thread(self._persistence_queue.join)
+
+    def _drain_persistence_queue_sync(self) -> None:
+        if self._persistence_worker is None:
+            return
+        self._persistence_queue.join()
+
+    def _persistence_worker_loop(self) -> None:
+        while True:
+            item = self._persistence_queue.get()
+            try:
+                if item is self._persistence_stop_token:
+                    return
+                try:
+                    self._process_persistence_item(item)
+                except Exception:
+                    self._persistence_failures += 1
+            finally:
+                self._persistence_queue.task_done()
+
+    def _process_persistence_item(self, item: dict) -> None:
+        kind = item.get("kind")
+        if kind in {"page_ingest", "finding_ingest"}:
+            try:
+                self._duck_execute(item["sql"], item["params"])
+            except Exception:
+                self._persistence_failures += 1
+            try:
+                self._insert_vector_rows([item["vector_row"]])
+            except Exception:
+                self._persistence_failures += 1
+            return
+        raise ValueError(f"Unknown persistence item kind: {kind}")
 
     def _initialize_duckdb_schema(self):
         self._duck_execute("""
@@ -357,19 +417,12 @@ class OntologyStore:
             "responseTimeMs": response_time_ms,
             "status": status_code
         }
-        
-        async with self.db_lock:
-            self._duck_execute(
-                "INSERT INTO audit_pages (run_id, page_url, status, response_time_ms, page_hash, title, headers_json, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                [run_id, page_url, status_code, response_time_ms, page_hash, title, json.dumps(headers), json.dumps(metadata)]
-            )
-            
+
         # Strip HTML for vector representation
         stripped_text = re.sub(r"<[^>]+>", " ", html_content)
         stripped_text = " ".join(stripped_text.split())[:2000]
-        
         vector = make_vector(stripped_text, self.vector_dimensions)
-        
+
         vector_row = {
             "id": f"page:{hashlib.sha256(page_url.encode('utf-8')).hexdigest()[:16]}",
             "kind": "page",
@@ -381,21 +434,34 @@ class OntologyStore:
             "url": page_url,
             "vector": vector
         }
-        await self._queue_vector_row(vector_row)
+        await self._enqueue_persistence_item(
+            {
+                "kind": "page_ingest",
+                "sql": (
+                    "INSERT INTO audit_pages (run_id, page_url, status, response_time_ms, "
+                    "page_hash, title, headers_json, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                "params": [
+                    run_id,
+                    page_url,
+                    status_code,
+                    response_time_ms,
+                    page_hash,
+                    title,
+                    json.dumps(headers),
+                    json.dumps(metadata),
+                ],
+                "vector_row": vector_row,
+            }
+        )
 
     async def record_finding(self, run_id: str, page_url: str, domain_id: str, issue_id: str, severity: str, message: str, location: str = "", remedy: str = "", metadata: dict = None):
         if metadata is None:
             metadata = {}
-            
-        async with self.db_lock:
-            self._duck_execute(
-                "INSERT INTO audit_findings (run_id, page_url, domain_id, issue_id, severity, message, location, remedy, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [run_id, page_url, domain_id, issue_id, severity, message, location, remedy, json.dumps(metadata)]
-            )
-            
+
         finding_text = f"Issue in {domain_id}: {message}. Location: {location}. Remedy: {remedy}"
         vector = make_vector(finding_text, self.vector_dimensions)
-        
+
         vector_row = {
             "id": f"finding:{hashlib.sha256((page_url + issue_id).encode('utf-8')).hexdigest()[:16]}",
             "kind": "finding",
@@ -407,18 +473,38 @@ class OntologyStore:
             "url": page_url,
             "vector": vector
         }
-        await self._queue_vector_row(vector_row)
+        await self._enqueue_persistence_item(
+            {
+                "kind": "finding_ingest",
+                "sql": (
+                    "INSERT INTO audit_findings (run_id, page_url, domain_id, issue_id, severity, "
+                    "message, location, remedy, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                "params": [
+                    run_id,
+                    page_url,
+                    domain_id,
+                    issue_id,
+                    severity,
+                    message,
+                    location,
+                    remedy,
+                    json.dumps(metadata),
+                ],
+                "vector_row": vector_row,
+            }
+        )
 
     async def finish_run(self, run_id: str, report_dict: dict, page_count: int, domain_count: int):
         report_payload = normalize_report_payload(report_dict)
         completed_at = datetime.now(timezone.utc).isoformat()
-        
+
+        await self._drain_persistence_queue()
         async with self.db_lock:
             self._duck_execute(
                 "UPDATE audit_runs SET completed_at = ?, page_count = ?, domain_count = ?, report_json = ? WHERE run_id = ?",
                 [completed_at, page_count, domain_count, json.dumps(report_payload), run_id]
             )
-        await self._flush_vector_buffer()
         summary_text = f"Audit run finished for {report_payload.get('target_url', 'unknown')}. Pages: {page_count}. Domains: {domain_count}."
         vector = make_vector(summary_text, self.vector_dimensions)
         
@@ -790,10 +876,14 @@ class OntologyStore:
         }
 
     def close(self):
-        if self._vector_buffer:
-            rows = self._vector_buffer
-            self._vector_buffer = []
-            self._insert_vector_rows(rows)
+        try:
+            self._drain_persistence_queue_sync()
+            if self._persistence_worker and self._persistence_worker.is_alive():
+                self._enqueue_persistence_item_sync(self._persistence_stop_token)
+                self._persistence_queue.join()
+                self._persistence_worker.join(timeout=5)
+        except Exception:
+            pass
         try:
             self.duck_conn.close()
         except Exception:

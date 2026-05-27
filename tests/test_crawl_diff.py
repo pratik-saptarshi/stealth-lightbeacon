@@ -69,3 +69,63 @@ async def test_compare_audit_runs_uses_persisted_reports():
 
     assert diff["score_delta"] == pytest.approx(-1.0)
     assert "R-SEO-LD-MISS" in diff["new_issue_ids"]
+
+
+@pytest.mark.asyncio
+async def test_compare_audit_runs_uses_raw_sql_fallback_and_missing_run():
+    report_a = {"targetUrl": "https://example.com", "domains": []}
+
+    class RawStore:
+        def __init__(self):
+            self.duck_conn = type(
+                "Conn",
+                (),
+                {
+                "execute": lambda self, sql, params=None: type(
+                    "R",
+                    (),
+                    {
+                        "fetchone": lambda self: (
+                            '{"target_url": "https://example.com", "domains": []}',
+                        )
+                        if params[0] == "run_a"
+                        else None
+                    },
+                )(),
+                },
+            )()
+
+    with pytest.raises(ValueError, match="Missing audit run"):
+        await compare_audit_runs(RawStore(), "run_a", "run_b")
+
+    diff = await compare_audit_runs(
+        type(
+            "Store",
+            (),
+            {
+                "duck_conn": type(
+                    "Conn",
+                    (),
+                    {
+                        "execute": lambda self, sql, params=None: type(
+                            "R",
+                            (),
+                            {
+                                "fetchone": lambda self: (
+                                    '{"target_url": "https://example.com", "domains": []}',
+                                )
+                                if params[0] == "run_a"
+                                else (
+                                    '{"target_url": "https://example.com", "domains": [{"name": "Technical SEO", "score": 5.0, "issues": []}]}',
+                                )
+                            },
+                        )(),
+                    },
+                )(),
+            },
+        )(),
+        "run_a",
+        "run_b",
+    )
+
+    assert diff["score_delta"] == pytest.approx(5.0)

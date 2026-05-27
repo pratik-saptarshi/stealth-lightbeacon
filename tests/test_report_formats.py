@@ -94,6 +94,46 @@ def test_legacy_payload_shapes_are_normalized():
     assert parsed["domains"][0]["name"] == "Technical SEO"
 
 
+def test_report_payload_normalizes_legacy_defaults():
+    legacy_payload = {
+        "targetUrl": "https://example.com",
+        "domains": [
+            {
+                "domain": "Technical SEO",
+                "score": "7.25",
+                "issues": [
+                    {
+                        "id": "R-SEO-TITLE-LEN",
+                        "severity": "warning",
+                        "message": "Title is too long.",
+                        "location": "<title>",
+                        "remedy": "Shorten the title.",
+                    },
+                    "skip-me",
+                ],
+                "metadata": "not-a-mapping",
+            },
+            {
+                "name": "Accessibility (WCAG 2.2 AA)",
+                "score": 8.75,
+                "issues": [],
+            },
+        ],
+    }
+
+    normalized = normalize_report_payload(legacy_payload)
+
+    assert normalized["average_score"] == pytest.approx(8.0)
+    assert normalized["total_issues"] == 1
+    assert normalized["domains"][0]["metadata"] == {}
+    assert len(normalized["domains"][0]["issues"]) == 1
+
+    rendered = render_report_format(" JSON ", legacy_payload)
+    parsed = json.loads(rendered)
+    assert parsed["average_score"] == pytest.approx(8.0)
+    assert parsed["domains"][0]["name"] == "Technical SEO"
+
+
 def test_unknown_report_format_is_rejected():
     payload = build_report_payload("https://example.com", _sample_results())
 

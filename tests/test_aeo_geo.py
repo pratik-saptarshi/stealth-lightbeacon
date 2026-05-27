@@ -53,6 +53,38 @@ def mock_html_stuffed() -> str:
 </html>
 """
 
+
+@pytest.fixture
+def mock_html_aeo_geo_warning() -> str:
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>AEO Gaps</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage"}</script>
+</head>
+<body>
+  <h1>Overview</h1>
+  <h3>What is answer engine optimization?</h3>
+  <p>Too short.</p>
+  <p>Reference material at <a href="https://example.com/source">Example</a>.</p>
+</body>
+</html>
+"""
+
+
+@pytest.fixture
+def mock_html_aeo_geo_malformed_jsonld() -> str:
+    return """<!DOCTYPE html>
+<html>
+<head>
+  <script type="application/ld+json">{not valid json}</script>
+</head>
+<body>
+  <p>Plain prose without question headings or citations.</p>
+</body>
+</html>
+"""
+
 @pytest.mark.asyncio
 async def test_aeo_geo_valid_opt(mock_html_aeo_geo_opt: str):
     """
@@ -83,3 +115,68 @@ async def test_aeo_geo_invalid_stuffed(mock_html_stuffed: str):
     assert "R-GEO-STUFFING-WARN" in issue_ids
     assert "R-GEO-CIT-NONE" in issue_ids
     assert "R-GEO-EEAT-AUTHOR" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_aeo_geo_warning_paths_and_malformed_jsonld(
+    mock_html_aeo_geo_warning: str,
+    mock_html_aeo_geo_malformed_jsonld: str,
+):
+    evaluator = AeoGeoEvaluator()
+
+    warning_result = await evaluator.evaluate(
+        mock_html_aeo_geo_warning,
+        "https://example.com/warn",
+    )
+    warning_ids = [issue.id for issue in warning_result.issues]
+
+    assert "R-AEO-SNIPPET-LEN" in warning_ids
+    assert "R-AEO-HEAD-SKIP" in warning_ids
+    assert "R-GEO-CIT-LOW" in warning_ids
+
+    malformed_result = await evaluator.evaluate(
+        mock_html_aeo_geo_malformed_jsonld,
+        "https://example.com/malformed",
+    )
+    malformed_ids = [issue.id for issue in malformed_result.issues]
+
+    assert "R-AEO-QA-NONE" in malformed_ids
+    assert "R-AEO-HEADINGS-MISS" in malformed_ids
+    assert "R-GEO-CIT-NONE" in malformed_ids
+
+
+@pytest.mark.asyncio
+async def test_aeo_geo_nested_jsonld_list_shapes():
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script type="application/ld+json">
+  [
+    {
+      "@graph": [
+        {
+          "@type": ["Article", "WebPage"],
+          "headline": "Nested article",
+          "author": {
+            "@type": "Person",
+            "name": "Nested Author",
+            "jobTitle": "Editor"
+          },
+          "dateModified": "2026-05-27T00:00:00Z"
+        }
+      ]
+    }
+  ]
+  </script>
+</head>
+<body>
+  <h2>How does nested schema work?</h2>
+  <p>This answer intentionally stays concise and cites <a href="https://wikipedia.org/wiki/Schema.org">Wikipedia</a>.</p>
+</body>
+</html>
+"""
+    result = await AeoGeoEvaluator().evaluate(html, "https://example.com/nested")
+
+    assert result.metadata["eeat_author_found"] is True
+    assert result.metadata["readiness_components"]["structured_data"] == 10.0
+    assert result.metadata["qa_outline_found"] is True

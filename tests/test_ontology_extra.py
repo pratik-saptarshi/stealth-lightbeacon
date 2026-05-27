@@ -1,20 +1,9 @@
-from pathlib import Path
+import asyncio
 
 import pytest
 
 import utils.ontology as ontology
 from utils.ontology import OntologyStore
-
-
-class _RecordingVectorStore:
-    def __init__(self):
-        self.insert_batches = []
-
-    def insert(self, rows):
-        self.insert_batches.append([dict(row) for row in rows])
-
-    def search(self, query_vector, limit=10):
-        return []
 
 
 class _FailingVectorStore:
@@ -162,35 +151,134 @@ async def test_ontology_store_finish_run_survives_vector_store_failure(tmp_path,
 
         report = await store.get_run_report("run-fail")
         assert report["target_url"] == "https://example.com/fail"
-        assert store._vector_buffer == []
+        assert len(store.duck_conn.tables["audit_pages"]) == 1
         assert len(store.vector_store.insert_batches) >= 1
     finally:
         store.close()
 
 
 @pytest.mark.asyncio
-async def test_ontology_store_close_flushes_pending_buffer(tmp_path, monkeypatch):
+async def test_ontology_store_applies_backpressure_when_queue_saturates(tmp_path, monkeypatch):
     monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
     monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
 
-    store = OntologyStore(root_dir=str(tmp_path / "flush"), vector_dimensions=8)
-    store.vector_store = _RecordingVectorStore()
+    store = OntologyStore(
+        root_dir=str(tmp_path / "backpressure"),
+        vector_dimensions=8,
+        persistence_queue_size=1,
+    )
+
+    original_ensure = store._ensure_persistence_worker
+    monkeypatch.setattr(store, "_ensure_persistence_worker", lambda: None)
 
     try:
-        await store.begin_run("run-flush", "https://example.com/flush", "2026-01-04T00:00:00Z", {"crawl_depth": 1})
+        await store.begin_run(
+            "run-bp",
+            "https://example.com/bp",
+            "2026-01-04T00:00:00Z",
+            {"crawl_depth": 1},
+        )
+        first_task = asyncio.create_task(
+            store.record_page(
+                "run-bp",
+                "https://example.com/one",
+                "<html><title>One</title><body>one</body></html>",
+                status_code=200,
+                response_time_ms=10,
+            )
+        )
+
+        second_task = asyncio.create_task(
+            store.record_page(
+                "run-bp",
+                "https://example.com/two",
+                "<html><title>Two</title><body>two</body></html>",
+                status_code=200,
+                response_time_ms=20,
+            )
+        )
+
+        await asyncio.sleep(0.1)
+        assert not second_task.done()
+
+        monkeypatch.setattr(store, "_ensure_persistence_worker", original_ensure)
+        original_ensure()
+
+        await first_task
+        await second_task
+
+        await store.finish_run(
+            "run-bp",
+            {
+                "targetUrl": "https://example.com/bp",
+                "domains": [],
+            },
+            page_count=2,
+            domain_count=0,
+        )
+
+        assert len(store.duck_conn.tables["audit_pages"]) == 2
+    finally:
+        monkeypatch.setattr(store, "_ensure_persistence_worker", original_ensure)
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_ontology_store_keeps_processing_after_worker_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
+    monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
+
+    store = OntologyStore(
+        root_dir=str(tmp_path / "failure-isolation"),
+        vector_dimensions=8,
+        persistence_queue_size=4,
+    )
+
+    original_process = store._process_persistence_item
+    seen = {"count": 0}
+
+    def flaky_process(item):
+        seen["count"] += 1
+        if seen["count"] == 1:
+            raise RuntimeError("boom")
+        return original_process(item)
+
+    monkeypatch.setattr(store, "_process_persistence_item", flaky_process)
+
+    try:
+        await store.begin_run(
+            "run-failover",
+            "https://example.com/failover",
+            "2026-01-05T00:00:00Z",
+            {"crawl_depth": 1},
+        )
         await store.record_page(
-            "run-flush",
-            "https://example.com/flush",
-            "<html><title>Flush</title><body>pending</body></html>",
+            "run-failover",
+            "https://example.com/first",
+            "<html><title>First</title><body>first</body></html>",
             status_code=200,
             response_time_ms=10,
         )
-        assert len(store._vector_buffer) == 1
+        await store.record_page(
+            "run-failover",
+            "https://example.com/second",
+            "<html><title>Second</title><body>second</body></html>",
+            status_code=200,
+            response_time_ms=20,
+        )
+        await store.finish_run(
+            "run-failover",
+            {
+                "targetUrl": "https://example.com/failover",
+                "domains": [],
+            },
+            page_count=2,
+            domain_count=0,
+        )
 
-        store.close()
-
-        assert store._vector_buffer == []
-        assert store.vector_store.insert_batches
-        assert store.vector_store.insert_batches[0][0]["kind"] == "page"
+        pages = store.duck_conn.tables["audit_pages"]
+        assert len(pages) == 1
+        assert pages[0]["page_url"] == "https://example.com/second"
+        assert store._persistence_failures >= 1
     finally:
         store.close()

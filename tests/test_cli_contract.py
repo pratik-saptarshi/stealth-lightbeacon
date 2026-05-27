@@ -22,3 +22,13 @@ def test_select_active_evaluators_supports_audit_subset():
     assert "Drupal & Security Headers" in domains
     assert "PageSpeed & Performance" in domains
     assert "Technical SEO" not in domains
+
+
+def test_select_active_evaluators_supports_aliases():
+    evaluators = select_active_evaluators("drupal,aeo,geo")
+    domains = {e.domain for e in evaluators}
+
+    assert domains == {
+        "Drupal & Security Headers",
+        "AEO & GEO Optimization",
+    }

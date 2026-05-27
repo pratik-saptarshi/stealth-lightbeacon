@@ -128,10 +128,13 @@ def validate_service_contract(contract: dict[str, Any]) -> list[str]:
     """Return drift errors for the checked-in OpenAPI snapshot."""
     errors: list[str] = []
 
+    def as_mapping(value: Any) -> dict[str, Any]:
+        return value if isinstance(value, dict) else {}
+
     if contract.get("openapi") != CONTRACT_OPENAPI_VERSION:
         errors.append(f"openapi version drift: {contract.get('openapi')!r}")
 
-    info = contract.get("info", {})
+    info = as_mapping(contract.get("info", {}))
     if info.get("title") != "Stealth Lightbeacon Service API":
         errors.append(f"info.title drift: {info.get('title')!r}")
     if info.get("version") != CONTRACT_API_VERSION:
@@ -141,10 +144,10 @@ def validate_service_contract(contract: dict[str, Any]) -> list[str]:
     if not isinstance(servers, list) or len(servers) < 2:
         errors.append("servers list missing local and cloud entries")
     else:
-        local_server = servers[0]
+        local_server = as_mapping(servers[0])
         if local_server.get("url") != CONTRACT_DEFAULT_BASE_URL:
             errors.append(f"local server url drift: {local_server.get('url')!r}")
-        cloud_server = servers[1]
+        cloud_server = as_mapping(servers[1])
         if cloud_server.get("url") != "https://api.stealth-lightbeacon.example":
             errors.append(f"cloud server url drift: {cloud_server.get('url')!r}")
 
@@ -162,8 +165,8 @@ def validate_service_contract(contract: dict[str, Any]) -> list[str]:
     if extra_routes:
         errors.append(f"unexpected routes: {extra_routes}")
 
-    transport = contract.get("x-transport", {})
-    local_transport = transport.get("local", {}) if isinstance(transport, dict) else {}
+    transport = as_mapping(contract.get("x-transport", {}))
+    local_transport = as_mapping(transport.get("local", {}))
     if local_transport.get("host") != CONTRACT_DEFAULT_HOST:
         errors.append(f"local host drift: {local_transport.get('host')!r}")
     if local_transport.get("port") != CONTRACT_DEFAULT_PORT:
@@ -171,13 +174,13 @@ def validate_service_contract(contract: dict[str, Any]) -> list[str]:
     if local_transport.get("base_url") != CONTRACT_DEFAULT_BASE_URL:
         errors.append(f"local base url drift: {local_transport.get('base_url')!r}")
 
-    cloud_transport = transport.get("cloud", {}) if isinstance(transport, dict) else {}
+    cloud_transport = as_mapping(transport.get("cloud", {}))
     if cloud_transport.get("scheme") != CONTRACT_REMOTE_SCHEME:
         errors.append(f"cloud scheme drift: {cloud_transport.get('scheme')!r}")
     if cloud_transport.get("auth") != "bearer":
         errors.append(f"cloud auth drift: {cloud_transport.get('auth')!r}")
 
-    stdin_transport = transport.get("stdin", {}) if isinstance(transport, dict) else {}
+    stdin_transport = as_mapping(transport.get("stdin", {}))
     if stdin_transport.get("adapter") != CONTRACT_STDIN_ADAPTER:
         errors.append(f"stdin adapter drift: {stdin_transport.get('adapter')!r}")
 

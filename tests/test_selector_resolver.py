@@ -62,3 +62,19 @@ def test_selector_resolver_stays_document_scoped():
     assert second is not None
     assert first.get_text().strip() == "Primary"
     assert second.get_text().strip() == "Secondary"
+
+
+def test_selector_resolver_cache_and_fallback_paths():
+    parser = HtmlParser("<main><button class='cta'>Launch</button></main>")
+    resolver = SelectorResolver(min_confidence=0.5)
+
+    resolved = resolver.resolve(parser, "button#missing", text_hint="Launch")
+    cached = resolver.resolve(parser, "button#missing", text_hint="Launch")
+    split_name, split_attrs = resolver._split_selector("button#launch.cta", None)
+
+    assert resolved is cached
+    assert resolved.selector == "button.cta"
+    assert resolved.repaired is True
+    assert split_name == "button"
+    assert split_attrs["id"] == "launch"
+    assert split_attrs["class"] == ["cta"]

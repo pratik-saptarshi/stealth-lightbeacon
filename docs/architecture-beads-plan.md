@@ -29,6 +29,7 @@ The current repo state validates the first three architecture phases.
 | Phase 2 | Complete | MCP mode rejects mutable runtime downloads and now exposes the resolved runtime contract. | None in this tracker. |
 | Phase 3 | Open | Persistence still performs row-level writes during evaluation, and the failure/backpressure path is not fully hardened. | Queue/batch persistence off the crawl hot path and cover failure isolation. |
 | Phase 4 | Open | Docs and CI recipes are aligned, but the release/BOM drift guard and low-coverage seams still need dedicated tests. | Add drift checks and raise coverage on the weak branches. |
+| Phase 5 | Open | The new coverage epic is now tracked in Beads, but the parser/evaluator and utility sweeps still need to land. | Keep driving CAP-5 toward the 90% coverage target and mirror issue progress in docs. |
 
 ## Execution Map Mirror
 
@@ -42,6 +43,7 @@ stay aligned.
 | CAP-2 Evaluation lifecycle and artifact delivery | `stealth-lightbeacon-m0q` | `stealth-lightbeacon-m0q.1`, `stealth-lightbeacon-m0q.2`, `stealth-lightbeacon-m0q.3`, `stealth-lightbeacon-m0q.4`, `stealth-lightbeacon-m0q.5` | Complete |
 | CAP-3 Client alignment | `stealth-lightbeacon-ds8` | `stealth-lightbeacon-ds8.1`, `stealth-lightbeacon-ds8.2`, `stealth-lightbeacon-ds8.3` | Open |
 | CAP-4 Validation and release hardening | `stealth-lightbeacon-epr` | `stealth-lightbeacon-epr.1`, `stealth-lightbeacon-epr.2`, `stealth-lightbeacon-epr.3` | Open |
+| CAP-5 Coverage uplift and feature hardening | `stealth-lightbeacon-2tr` | `stealth-lightbeacon-2tr.1`, `stealth-lightbeacon-2tr.2`, `stealth-lightbeacon-2tr.3` | Open |
 
 The canonical decomposition and task details live in
 [`docs/roadmap/roadmap.md`](docs/roadmap/roadmap.md).
@@ -53,6 +55,7 @@ The canonical decomposition and task details live in
 | Persistence off hot path | Batched ontology writes, bounded flushes, failure isolation | Phase 3 | Queue write work, preserve run finalization, keep small-job sync path | `tests/test_ontology.py`, `tests/integration/test_full_pipeline.py`, coverage on `utils/ontology.py` |
 | Release contract sync | Docs, CI recipes, BOM, alias shims | Phase 4 | Keep canonical docs aligned, regenerate BOM, archive both artifacts | `tests/test_cli_contract.py`, `tests/test_report_formats.py`, `tests/test_ci_recipes.py`, `python3 utils/update_bom.py` |
 | Coverage closure | Low-coverage helper branches | Phase 4 | Add focused tests for renderer, BOM updater, pagespeed, watcher, ontology | Full coverage run with `--fail-under=80` |
+| Coverage uplift | Parser/evaluator/utility edge cases and docs sync | Phase 5 | Add focused tests for parser backends, evaluator warnings, SSRF, recon, crawler, and scraper helpers | Full coverage run with `--fail-under=80` and mirrored Beads issue updates |
 
 ## Issue Tracker
 
@@ -62,6 +65,9 @@ The canonical decomposition and task details live in
 | P3-2 | Phase 3 | B/E/A/D/S | Queue flush and storage-failure handling are not yet explicitly exercised for partial failure, retry, or backpressure behavior. | Add regression tests and guardrails for vector-store flush failures, bounded queue pressure, and partial persistence rollback/fallback semantics. | New unit coverage for `utils/ontology.py` failure branches; `pytest -q -o addopts="" tests/test_ontology.py`; full-suite run with coverage report. | Open |
 | P4-1 | Phase 4 | B/E/A/D/S | Release metadata must stay synchronized with the docs surface, CI recipes, alias shims, and the generated BOM. | Keep canonical docs and all alias shims aligned, treat `utils/update_bom.py` as the source of truth for `bill-of-material.md`, and keep CI recipes archiving both report artifacts. | `pytest -q -o addopts="" tests/test_cli_contract.py tests/test_report_formats.py tests/test_ci_recipes.py`; `python3 utils/update_bom.py`; `git diff --check`; full-suite coverage run. | Open |
 | P4-2 | Phase 4 | B/E/A/D/S | Coverage is still thin on the BOM updater and several fallback/error branches in renderer, watcher, persistence, and scraping helpers. | Add focused unit tests for the low-coverage seams and keep the repository above the 80% coverage target. | `pytest -q -o addopts="" tests/test_report_formats.py tests/test_pagespeed.py tests/test_ontology.py tests/test_watcher.py tests/test_mcp_scraper.py tests/test_stealth_mcp.py`; new `tests/test_update_bom.py`; `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-report=term-missing tests`; `pytest -q -o addopts="" --cov=modules --cov=crawler --cov=utils --cov-fail-under=80 tests`; confirm total coverage remains above 80%. | Open |
+| P5-1 | Phase 5 | B/E/A/D/S | Parser and evaluator helpers still leave malformed HTML, structured data drift, and security-header branches uncovered. | Add TDD tests for `modules/html_parser.py`, `modules/aeo_geo.py`, `modules/drupal.py`, and `modules/renderer.py` edge cases. | `pytest -q -o addopts="" tests/test_html_parser_adapter.py tests/test_html_parser_selectolax.py tests/test_aeo_geo.py tests/test_drupal.py tests/test_renderer_extra.py`; full coverage run. | Open |
+| P5-2 | Phase 5 | B/E/A/D/S | Utility and scraper helpers still leave SSRF, recon, crawler, and browser lifecycle branches uncovered. | Add TDD tests for `utils/ssrf_guard.py`, `utils/crawl_diff.py`, `utils/browser_pool.py`, `utils/recon.py`, `utils/watcher.py`, and scraping engine fallbacks. | `pytest -q -o addopts="" tests/test_ssrf_protection.py tests/test_ssrf_rebinding.py tests/test_crawl_diff.py tests/test_browser_pool.py tests/test_recon_mode.py tests/test_scraping_engines_edge_cases.py`; full coverage run. | Open |
+| P5-3 | Phase 5 | B/E/A/D/S | Roadmap and Beads tracking need a canonical record for the coverage uplift effort. | Keep the roadmap, architecture plan, and child Beads issues aligned as coverage work lands. | `bd show stealth-lightbeacon-2tr`; `bd ready`; diff the roadmap docs; full coverage run. | Open |
 
 ## Prioritized Fix Plan
 
@@ -117,10 +123,11 @@ Validation gates:
 - Integration slice: 2 passed.
 - Full suite: 92 passed, 1 skipped.
 - Total coverage: last validated at 80.55% on 2026-05-26.
+- Total coverage: last validated at 85.97% on 2026-05-27 for the current uplift pass.
 - Coverage floor: 64% met.
 - Coverage target: 80% met.
-- Lowest-coverage files in the latest run: `modules/aeo_geo.py` 67%, `modules/drupal.py` 68%, `modules/scraping/stealth_mcp.py` 78%, `modules/pagespeed.py` 79%, `modules/html_parser.py` 80%.
-- Coverage target for this execution plan: 80% on the repo-wide `modules`, `crawler`, and `utils` coverage run.
+- Lowest-coverage files in the latest run: `modules/aeo_geo.py` 86%, `modules/drupal.py` 81%, `modules/scraping/stealth_mcp.py` 81%, `modules/pagespeed.py` 84%, `modules/html_parser.py` 82%, `utils/ssrf_guard.py` 86%, `utils/ontology.py` 83%.
+- Coverage target for this execution plan: 90% on the repo-wide `modules`, `crawler`, and `utils` coverage run.
 
 ## Architecture Checklist Coverage
 

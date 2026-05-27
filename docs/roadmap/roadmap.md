@@ -39,6 +39,7 @@ retire the old path under `docs/roadmap/`.
 | CAP-2 | `stealth-lightbeacon-m0q` | Evaluation lifecycle and artifact delivery | Create, poll, result, artifacts, and recon routes share one state model. | Complete |
 | CAP-3 | `stealth-lightbeacon-ds8` | Client alignment | Desktop Tauri and browser addon consume the same backend semantics. | Open |
 | CAP-4 | `stealth-lightbeacon-epr` | Validation and release hardening | Tests, drift checks, and docs stay aligned with the shipped contract. | Open |
+| CAP-5 | `stealth-lightbeacon-2tr` | Coverage uplift and feature hardening | Raise repo-wide coverage to 90% with focused parser, evaluator, utility, and docs-sync tests. | Open |
 
 ## Feature Decomposition
 
@@ -76,6 +77,14 @@ retire the old path under `docs/roadmap/`.
 | EP-4.2 | Integration coverage | End-to-end lifecycle smoke | As a maintainer, I can verify submission-to-artifact flows against a running service. | Add lifecycle tests for create/poll/result/artifacts/recon, plus failure-path coverage for 400/401/404/409 responses. | Open |
 | EP-4.3 | Drift guards | Docs and snapshot sync | As a maintainer, I can catch contract drift before release. | Snapshot the OpenAPI file, compare client types to contract schemas, and keep docs in sync with the shipped behavior. | Open |
 
+### CAP-5: Coverage Uplift and Feature Hardening
+
+| Epic ID | Epic | Feature | User Story | Tasks | Status |
+| --- | --- | --- | --- | --- | --- |
+| EP-5.1 | Parser and evaluator coverage | Remaining functional and edge branches | As a maintainer, I can trust the parser and evaluator stack under malformed HTML, structured data drift, and security header gaps. | Add TDD tests for html parser backends, AEO/GEO warnings, Drupal headers, renderer fallbacks, and selector repair edge cases. | Open |
+| EP-5.2 | Utility and scraper coverage | Helper and lifecycle branches | As a maintainer, I can trust the helper modules that support recon, SSRF, crawling, and browser reuse. | Add TDD tests for crawl diff, browser pool, SSRF guard, recon posture, BOM updates, and scraper engine fallbacks. | Open |
+| EP-5.3 | Roadmap and Beads sync | Consolidated tracker alignment | As a maintainer, I can keep the roadmap, Beads issues, and release notes aligned with the coverage uplift effort. | Keep this roadmap, the architecture plan, and the Beads child issues synchronized. | Open |
+
 ## Explicit Beads Child Issues
 
 | Issue ID | Beads ID | Parent | Type | BEADS | Description | Status | Validation Gate |
@@ -94,6 +103,9 @@ retire the old path under `docs/roadmap/`.
 | RDM-12 | `stealth-lightbeacon-epr.1` | CAP-4 / EP-4.1 | Epic | B: contract drift can regress runtime behavior; E: one pinned OpenAPI snapshot already exists; A: add schema and boundary unit tests; D: snapshot update process; S: contract validation stays green | Build unit test coverage for service seams. | Complete | `pytest` contract and boundary suite. |
 | RDM-13 | `stealth-lightbeacon-epr.2` | CAP-4 / EP-4.2 | Epic | B: service lifecycle has no end-to-end guard; E: clients require submit-to-artifact flow; A: add lifecycle smoke tests; D: async timing and state transitions; S: flow succeeds against a running service | Build integration test coverage for service lifecycle. | Complete | Running-service smoke suite. |
 | RDM-14 | `stealth-lightbeacon-epr.3` | CAP-4 / EP-4.3 | Epic | B: docs and code can drift; E: roadmap and snapshots now need a release gate; A: add snapshot/diff checks; D: release train changes; S: docs and contract remain synchronized | Build drift and release checks. | Open | Snapshot diff and docs-sync gate. |
+| RDM-15 | `stealth-lightbeacon-2tr.1` | CAP-5 / EP-5.1 | Task | B: parser and evaluator branches still have uncovered malformed-input and fallback paths; E: the latest coverage run still leaves html_parser, aeo_geo, drupal, and renderer thin; A: add focused TDD regression tests; D: fake parser backends and security header edge cases; S: parser/evaluator coverage lifts materially toward 90% | Raise parser and evaluator coverage. | Open | Focused unit tests for parser/evaluator edge cases and a refreshed coverage run. |
+| RDM-16 | `stealth-lightbeacon-2tr.2` | CAP-5 / EP-5.2 | Task | B: utility and scraper helpers still have missing branch coverage; E: browser pooling, SSRF, recon, crawl diff, and scraper fallbacks remain thin; A: add deterministic helper tests; D: singleton and async teardown state; S: utility/scraper coverage lifts without regressions | Raise utility and scraper coverage. | Open | Focused tests for helper fallbacks and a refreshed coverage run. |
+| RDM-17 | `stealth-lightbeacon-2tr.3` | CAP-5 / EP-5.3 | Task | B: docs and issue tracking need a canonical coverage uplift record; E: the new epic spans parser, evaluator, utility, and docs-sync tests; A: keep roadmap, architecture plan, and Beads child issues synchronized; D: drift between docs and tracker; S: roadmap and tracker share the same issue IDs | Sync coverage roadmap and Beads docs. | Open | Roadmap and architecture plan rows match the Beads child issues. |
 
 ## Unit Test Strategy
 
@@ -133,3 +145,4 @@ Exercise the service as clients will consume it.
 | Unit strategy | Complete | Turn the table above into concrete tests. |
 | Integration strategy | Complete | Add lifecycle smoke coverage once the service exists. |
 | Beads tracker | Complete | Capability epics and child issues now exist in the local Beads database. |
+| Coverage uplift | Open | Keep pushing the repo toward 90% with the CAP-5 child issues. |

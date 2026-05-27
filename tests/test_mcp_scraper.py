@@ -74,6 +74,33 @@ async def test_mcp_layer_falls_back_when_subprocess_creation_fails(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_mcp_layer_falls_back_on_invalid_content_payload(monkeypatch):
+    lines = [
+        b'{"result": {"capabilities": {}}}\n',
+        b'{"result": {"ok": true}}\n',
+        b'{"result": {"content": [{"text": 123}]}}\n',
+    ]
+    fake_process = _FakeProcess(lines)
+
+    async def fake_subprocess_exec(*args, **kwargs):
+        return fake_process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess_exec)
+    monkeypatch.setattr("modules.scraping.stealth_mcp.ObscuraEngine", _FallbackEngine)
+
+    layer = StealthMcpLayer(
+        mcp_command="/opt/mcp/playwright",
+        mcp_args=["--pinned", "1.2.3"],
+    )
+
+    html = await layer.scrape("https://example.com")
+
+    assert html == "<html><body>fallback</body></html>"
+    assert fake_process.terminate_called is True
+    assert fake_process.wait_called is True
+
+
+@pytest.mark.asyncio
 async def test_mcp_layer_scrape_uses_bounded_timeouts_and_shutdown(monkeypatch):
     lines = [
         b'{"result": {"capabilities": {}}}\n',
