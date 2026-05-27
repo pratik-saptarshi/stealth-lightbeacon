@@ -13,6 +13,7 @@ renderers, and release/docs contracts for CI and human operators.
 - `report/generator.py`: HTML report generator.
 - `changelog.md`: canonical release history for the active train.
 - `bill-of-material.md`: generated BOM and dependency metadata.
+- `shared-axioms.md`: cross-repo boundary ownership and validation axioms.
 - `utils/agent_card.py`: orchestration manifest for downstream automation.
 - `docs/architecture.md`: canonical architecture guide.
 - `docs/architecture-beads-plan.md`: phase-based remediation backlog.
