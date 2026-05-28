@@ -48,6 +48,22 @@ stay aligned.
 The canonical decomposition and task details live in
 [`docs/roadmap/roadmap.md`](docs/roadmap/roadmap.md).
 
+## Execution Map Mirror
+
+The service-contract roadmap now uses the same Beads IDs in both the docs and
+the local tracker. Mirror those IDs here so the architecture plan and tracker
+stay aligned.
+
+| Capability | Beads ID | Child IDs | Status |
+|---|---|---|---|
+| CAP-1 Service contract and transport unification | `stealth-lightbeacon-fw9` | `stealth-lightbeacon-fw9.1`, `stealth-lightbeacon-fw9.2`, `stealth-lightbeacon-fw9.3` | Complete |
+| CAP-2 Evaluation lifecycle and artifact delivery | `stealth-lightbeacon-m0q` | `stealth-lightbeacon-m0q.1`, `stealth-lightbeacon-m0q.2`, `stealth-lightbeacon-m0q.3`, `stealth-lightbeacon-m0q.4`, `stealth-lightbeacon-m0q.5` | Complete |
+| CAP-3 Client alignment | `stealth-lightbeacon-ds8` | `stealth-lightbeacon-ds8.1`, `stealth-lightbeacon-ds8.2`, `stealth-lightbeacon-ds8.3` | Open |
+| CAP-4 Validation and release hardening | `stealth-lightbeacon-epr` | `stealth-lightbeacon-epr.1`, `stealth-lightbeacon-epr.2`, `stealth-lightbeacon-epr.3` | Open |
+
+The canonical decomposition and task details live in
+[`docs/roadmap/roadmap.md`](docs/roadmap/roadmap.md).
+
 ## Feature Map
 
 | Feature | Scope | Phase | Implementation focus | Validation focus |
