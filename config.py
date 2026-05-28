@@ -16,8 +16,8 @@ PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 REQUEST_TIMEOUT = 15  # seconds
 REQUEST_HEADERS = {
     "User-Agent": (
-        "StealthLightbeacon/1.2.5 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
-        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.5)"
+        "StealthLightbeacon/1.2.7 (+https://github.com/pratik-saptarshi/stealth-lightbeacon) "
+        "Mozilla/5.0 (compatible; StealthLightbeaconBot/1.2.7)"
     )
 }
 
@@ -66,7 +66,7 @@ SERVICE_DEFAULT_BASE_URL = os.getenv(
 SERVICE_REMOTE_SCHEME = os.getenv("SLB_SERVICE_REMOTE_SCHEME", "https")
 SERVICE_STDIN_ADAPTER = os.getenv("SLB_SERVICE_STDIN_ADAPTER", "stdin")
 SERVICE_STORAGE_DIR = os.getenv("SLB_SERVICE_STORAGE_DIR", ".data/service")
-SERVICE_VERSION = os.getenv("SLB_SERVICE_VERSION", "1.2.5")
+SERVICE_VERSION = os.getenv("SLB_SERVICE_VERSION", "1.2.7")
 
 # ─── MCP ───────────────────────────────────────────────────────────────────────
 MCP_COMMAND = os.getenv("SLB_MCP_COMMAND", "").strip() or None

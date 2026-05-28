@@ -98,7 +98,7 @@ def test_service_boots_and_handles_core_routes(tmp_path):
         assert capabilities["supportsArtifacts"] is True
         assert capabilities["apiMode"]["transport"] == "http"
 
-        compatibility = _read_json(f"{base_url}/compatibility?clientVersion=1.2.5")
+        compatibility = _read_json(f"{base_url}/compatibility?clientVersion=1.2.7")
         assert compatibility["compatible"] is True
         assert compatibility["serverMode"] == "local"
 

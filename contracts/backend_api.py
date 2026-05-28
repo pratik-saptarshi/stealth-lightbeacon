@@ -11,7 +11,7 @@ from utils.service_contract import (
 )
 
 API_VERSION = CONTRACT_API_VERSION
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.2.7"
 CONTRACT_DESCRIPTION = "Canonical contract for local and remote Stealth Lightbeacon clients."
 
 

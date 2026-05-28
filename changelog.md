@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.7
+
+### Public Release and Documentation Alignment
+
+- Published the public release surface as a conventional-commit-driven cut and aligned the runtime identity, service contract, and rendered report metadata to the new train.
+- Refreshed the CLI readme, architecture guide, and release docs so the public-facing release story points at the same tagged version everywhere.
+- Reconciled the compatibility defaults and smoke-test version pin so local service checks exercise the same release label that ships in reports.
+
+### Validation and Sanity
+
+- Ran the repo-wide test suite, release-sync checks, dependency validation, BOM regeneration, and OpenAPI export validation before publishing the release tag.
+- Confirmed the release artifacts remain synchronized with the checked-in contract snapshot and generated documentation.
+
 ## v1.2.6
 
 ### Mainline Consolidation and Validation

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Stealth Lightbeacon Service API",
-    "version": "1.2.5",
+    "version": "1.2.7",
     "description": "Canonical contract for local and remote Stealth Lightbeacon clients."
   },
   "servers": [
