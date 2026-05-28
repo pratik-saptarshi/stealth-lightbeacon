@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.6
+
+### Mainline Consolidation and Validation
+
+- Merged the remaining feature branch tips into `main` and collapsed the parallel worktree lineage into a single consolidated branch.
+- Preserved the queue-based service persistence path, the canonical service contract helpers, and the merged release docs while reconciling stale branch-specific overlaps.
+- Added focused coverage and integration tests for SEO edge cases, service evaluation storage, helper helpers, and orchestration flows.
+
+### Validation and Sanity
+
+- Ran the merge-sensitive regression tests, the repo-wide coverage gate, and the service-facing integration slices after consolidation.
+- Prepared the branch for CI-equivalent validation and release publication from the cleaned `main` line.
+
 ## v1.2.5
 
 ### Service Release and Contract Publication
