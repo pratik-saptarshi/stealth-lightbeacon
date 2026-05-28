@@ -4,6 +4,7 @@ test_seo.py — Unit tests for the SeoEvaluator module.
 
 import pytest
 import httpx
+from unittest.mock import AsyncMock, patch
 from modules.seo import SeoEvaluator
 from modules.base import EvaluationResult
 
@@ -71,3 +72,104 @@ async def test_seo_evaluator_handles_none_like_attributes():
     issue_ids = [issue.id for issue in result.issues]
     assert "R-SEO-CAN-EMPTY" in issue_ids
     assert "R-SEO-DESC-MISS" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_seo_evaluator_flags_global_robots_block_and_missing_sitemap():
+    html = """<!DOCTYPE html>
+<html>
+<head>
+  <title>Example SEO Page</title>
+  <meta name="description" content="A valid description that is long enough for the evaluator to accept.">
+  <link rel="canonical" href="https://example.com/seo">
+  <meta property="og:title" content="Example SEO Page">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage"}</script>
+</head>
+<body>
+  <main>Content</main>
+</body>
+</html>
+"""
+    evaluator = SeoEvaluator()
+
+    with patch.object(SeoEvaluator, "_fetch_robots_txt", AsyncMock(return_value="User-agent: *\nDisallow: /\n")):
+        result = await evaluator.evaluate(html, "https://example.com/seo")
+
+    issue_ids = [issue.id for issue in result.issues]
+    assert "R-SEO-ROBOTS-BLOCK" in issue_ids
+    assert "R-SEO-ROBOTS-SITEMAP" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_seo_evaluator_covers_fetch_and_branch_edges():
+    html = """<!DOCTYPE html>
+<html>
+<head>
+  <title>Short</title>
+  <meta name="description" content="brief">
+  <link rel="canonical" href="https://example.com/different">
+  <meta name="robots" content="noindex, follow">
+  <script type="application/ld+json"></script>
+  <script type="application/ld+json">{bad json</script>
+  <script type="application/ld+json">{"@context": "http://example.org"}</script>
+  <script type="application/ld+json">{"@context": "https://schema.org"}</script>
+</head>
+<body>
+  <main>Content</main>
+</body>
+</html>
+"""
+
+    class FakeResponse:
+        status_code = 200
+        text = "User-agent: *\nDisallow: /other\n"
+
+    class FakeClient:
+        async def get(self, url, follow_redirects=True):
+            return FakeResponse()
+
+    evaluator = SeoEvaluator()
+    result = await evaluator.evaluate(html, "https://example.com/other", client=FakeClient())
+
+    issue_ids = {issue.id for issue in result.issues}
+    assert "R-SEO-CAN-MISMATCH" in issue_ids
+    assert "R-SEO-LD-EMPTY-0" in issue_ids
+    assert "R-SEO-LD-PARSE-1" in issue_ids
+    assert "R-SEO-LD-CTX-2" in issue_ids
+    assert "R-SEO-LD-TYPE-3" in issue_ids
+    assert "R-SEO-TITLE-LEN" in issue_ids
+    assert "R-SEO-DESC-LEN" in issue_ids
+    assert "R-SEO-ROBOTS-NOINDEX" in issue_ids
+    assert "R-SEO-ROBOTS-PATH-BLOCK" in issue_ids
+    assert "R-SEO-ROBOTS-SITEMAP" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_seo_evaluator_handles_robots_fetch_exception():
+    html = """<!DOCTYPE html>
+<html>
+<head>
+  <title>Example SEO Page</title>
+  <meta name="description" content="A valid description that is long enough for the evaluator to accept.">
+  <link rel="canonical" href="https://example.com/seo">
+  <meta property="og:title" content="Example SEO Page">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage"}</script>
+</head>
+<body>
+  <main>Content</main>
+</body>
+</html>
+"""
+
+    class ExplodingClient:
+        async def get(self, url, follow_redirects=True):
+            raise RuntimeError("boom")
+
+        async def aclose(self):
+            return None
+
+    with patch.object(SeoEvaluator, "_fetch_robots_txt", AsyncMock(side_effect=RuntimeError("boom"))):
+        result = await SeoEvaluator().evaluate(html, "https://example.com/seo", client=ExplodingClient())
+
+    issue_ids = [issue.id for issue in result.issues]
+    assert "R-SEO-ROBOTS-MISS" in issue_ids

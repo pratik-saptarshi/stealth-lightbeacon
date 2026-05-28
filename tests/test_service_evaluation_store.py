@@ -154,3 +154,217 @@ async def test_recon_service_response_matches_contract_shape(monkeypatch):
 
     inspected = await recon.inspect_recon("https://example.com")
     assert inspected == payload
+
+
+@pytest.mark.asyncio
+async def test_ontology_service_edge_paths(tmp_path, monkeypatch):
+    monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
+    monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
+
+    store = OntologyStore(root_dir=str(tmp_path / "service-store"), vector_dimensions=8)
+
+    try:
+        assert store._normalize_output_formats(["both", "json", "llm", "geo-xml"]) == [
+            "json",
+            "html",
+            "llm",
+            "geo-xml",
+        ]
+
+        with pytest.raises(ValueError, match="At least one supported output format is required"):
+            store._normalize_output_formats([" ", "\t"])
+
+        with pytest.raises(ValueError, match="Evaluation target is required"):
+            await store.create_evaluation({"profile": "default", "outputFormats": ["json"]})
+
+        with pytest.raises(ValueError, match="Evaluation profile is required"):
+            await store.create_evaluation({"target": "https://example.com", "outputFormats": ["json"]})
+
+        with pytest.raises(ValueError, match="At least one output format is required"):
+            await store.create_evaluation(
+                {
+                    "target": "https://example.com",
+                    "profile": "default",
+                    "outputFormats": [],
+                }
+            )
+
+        await store.create_evaluation(
+            {
+                "target": "https://example.com",
+                "profile": "default",
+                "outputFormats": ["both"],
+                "maxDepth": 0,
+                "maxUrls": 0,
+                "failOnCritical": False,
+                "budgetGate": False,
+            },
+            evaluation_id="eval-edge",
+            accepted_at="2026-05-27T00:00:00Z",
+        )
+
+        running = await store.update_evaluation_status("eval-edge", status="running")
+        assert running["status"] == "running"
+        assert running["stage"] == "queued"
+        assert store._load_evaluation_row("eval-edge")["started_at"] is not None
+
+        with pytest.raises(ValueError, match="Missing terminal result for evaluation"):
+            await store.get_evaluation_result("eval-edge")
+
+        assert await store.get_evaluation_artifacts("eval-edge") == []
+
+        with pytest.raises(ValueError, match="Unknown persistence item kind"):
+            store._process_persistence_item({"kind": "bogus"})
+
+        health = store.health()
+        assert health["duckDbReady"] is True
+        assert health["lanceDbReady"] is False
+
+        store.vector_store.insert(
+            [
+                {
+                    "id": "run:edge",
+                    "kind": "run",
+                    "label": "https://example.com",
+                    "runId": "edge",
+                    "text": "edge search row",
+                    "url": "https://example.com",
+                    "score": 1.0,
+                    "metadata": json.dumps({"source": "edge"}),
+                    "vector": [0.0] * 8,
+                }
+            ]
+        )
+        results = store.search("edge search row", limit=1)
+        assert results[0]["metadata"] == {"source": "edge"}
+    finally:
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_ontology_service_exit_state_variants(tmp_path, monkeypatch):
+    monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
+    monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
+
+    store = OntologyStore(root_dir=str(tmp_path / "service-store"), vector_dimensions=8)
+
+    try:
+        budget_request = {
+            "target": "https://example.com/budget",
+            "profile": "default",
+            "outputFormats": ["json"],
+            "maxDepth": 1,
+            "maxUrls": 5,
+            "failOnCritical": False,
+            "budgetGate": True,
+        }
+        await store.create_evaluation(
+            budget_request,
+            evaluation_id="eval-budget",
+            accepted_at="2026-05-27T00:00:00Z",
+        )
+        budget_result = await store.complete_evaluation(
+            "eval-budget",
+            {
+                "targetUrl": "https://example.com/budget",
+                "average_score": 7.5,
+                "domains": [
+                    {
+                        "name": "Technical SEO",
+                        "score": 7.5,
+                        "issues": [],
+                    }
+                ],
+            },
+        )
+        assert budget_result["status"] == "completed"
+        assert (await store.get_evaluation_status("eval-budget"))["exitState"] == "budget_breach"
+        assert (await store.get_evaluation_artifacts("eval-budget"))[0]["name"] == "report.json"
+
+        failure_request = {
+            "target": "https://example.com/failure",
+            "profile": "default",
+            "outputFormats": ["json"],
+            "maxDepth": 1,
+            "maxUrls": 5,
+            "failOnCritical": True,
+            "budgetGate": False,
+        }
+        await store.create_evaluation(
+            failure_request,
+            evaluation_id="eval-failure",
+            accepted_at="2026-05-27T00:01:00Z",
+        )
+        failure_result = await store.complete_evaluation(
+            "eval-failure",
+            {
+                "targetUrl": "https://example.com/failure",
+                "average_score": 9.0,
+                "domains": [
+                    {
+                        "name": "Technical SEO",
+                        "score": 4.0,
+                        "issues": [
+                            {
+                                "id": "SEO-CRIT-1",
+                                "severity": "critical",
+                                "message": "Critical issue",
+                                "location": "head",
+                                "remedy": "Fix it",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+        assert failure_result["severityCounts"] == {"critical": 1}
+        assert (await store.get_evaluation_status("eval-failure"))["exitState"] == "failure"
+        assert (await store.get_evaluation_artifacts("eval-failure"))[0]["downloadUrl"].endswith(
+            "/evaluations/eval-failure/artifacts/report.json"
+        )
+    finally:
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_ontology_status_updates_and_artifact_generation(tmp_path, monkeypatch):
+    monkeypatch.setattr(ontology, "DUCKDB_AVAILABLE", False)
+    monkeypatch.setattr(ontology, "LANCEDB_AVAILABLE", False)
+
+    store = OntologyStore(root_dir=str(tmp_path / "service-store"), vector_dimensions=8)
+
+    try:
+        await store.create_evaluation(
+            {
+                "target": "https://example.com/status",
+                "profile": "default",
+                "outputFormats": ["both"],
+                "maxDepth": 1,
+                "maxUrls": 5,
+                "failOnCritical": False,
+                "budgetGate": False,
+            },
+            evaluation_id="eval-status",
+            accepted_at="2026-05-27T00:02:00Z",
+        )
+
+        status = await store.update_evaluation_status(
+            "eval-status",
+            status="completed",
+            terminal=True,
+            progress_percent=150,
+            message="Evaluation finished",
+            exit_state="success",
+        )
+        assert status["terminal"] is True
+        assert status["progressPercent"] == 100
+        assert status["message"] == "Evaluation finished"
+
+        row = store._load_evaluation_row("eval-status")
+        assert row["completed_at"] is not None
+
+        artifacts = await store.get_evaluation_artifacts("eval-status", base_url="http://127.0.0.1:8000")
+        assert [artifact["name"] for artifact in artifacts] == ["report.json", "report.html"]
+        assert await store.get_evaluation_artifacts("eval-status") == artifacts
+    finally:
+        store.close()

@@ -6,6 +6,7 @@ import pytest
 import os
 import asyncio
 import time
+from unittest.mock import patch
 from modules.cache import AsyncCache
 
 @pytest.fixture
@@ -70,3 +71,35 @@ async def test_cache_overwrite(temp_db_path):
     cached_data = await cache.get(url)
     assert cached_data is not None
     assert cached_data["score"] == 99
+
+
+@pytest.mark.asyncio
+async def test_cache_handles_sqlite_errors(temp_db_path):
+    class BrokenCursor:
+        def execute(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+        def fetchone(self):
+            return None
+
+    class BrokenConnection:
+        def cursor(self):
+            return BrokenCursor()
+
+        def execute(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+        def close(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    with patch("modules.cache.sqlite3.connect", return_value=BrokenConnection()):
+        cache = AsyncCache(temp_db_path)
+
+        assert await cache.get("https://example.com/missing", ttl=1) is None
+        await cache.set("https://example.com/missing", {"score": 1})

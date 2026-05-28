@@ -33,6 +33,7 @@ def test_cli_evaluate_dispatches_core_runtime_args(monkeypatch, tmp_path):
         result = runner.invoke(
             main.app,
             [
+                "evaluate",
                 "https://example.com",
                 "--out",
                 str(tmp_path),

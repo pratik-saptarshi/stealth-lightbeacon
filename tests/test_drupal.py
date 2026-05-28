@@ -111,3 +111,67 @@ async def test_drupal_fetch_headers_falls_back_to_get():
     assert headers == {"X-Test": "ok"}
     client.head.assert_awaited_once()
     client.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_drupal_jsonapi_exposure_is_reported():
+    html = "<html><body><h1>Plain page</h1></body></html>"
+    headers = httpx.Headers(
+        {
+            "Content-Security-Policy": "default-src 'self'",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Content-Type-Options": "nosniff",
+        }
+    )
+    response = AsyncMock()
+    response.status_code = 200
+    response.text = '{"data": [{"type": "user--user"}]}'
+    response.json = lambda: {"data": [{"type": "user--user"}]}
+    response.url = "https://example.com/jsonapi/user/user"
+    evaluator = DrupalEvaluator()
+
+    with patch.object(DrupalEvaluator, "_fetch_headers", AsyncMock(return_value=headers)), patch(
+        "utils.ssrf_guard.SSRFGuard.validate", AsyncMock(return_value=None)
+    ):
+        with patch("httpx.AsyncClient.get", AsyncMock(return_value=response)):
+            result = await evaluator.evaluate(
+                html,
+                "https://example.com",
+                check_api=True,
+            )
+
+    issue_ids = [issue.id for issue in result.issues]
+    assert "R-DRUP-API-EXPOSED" in issue_ids
+
+
+@pytest.mark.asyncio
+async def test_drupal_jsonapi_non_exposure_does_not_flag_issue():
+    html = "<html><body><h1>Plain page</h1></body></html>"
+    headers = httpx.Headers(
+        {
+            "Content-Security-Policy": "default-src 'self'",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Content-Type-Options": "nosniff",
+        }
+    )
+    response = AsyncMock()
+    response.status_code = 200
+    response.text = '{"data": [{"type": "node--article"}]}'
+    response.json = lambda: {"data": [{"type": "node--article"}]}
+    response.url = "https://example.com/jsonapi/user/user"
+    evaluator = DrupalEvaluator()
+
+    with patch.object(DrupalEvaluator, "_fetch_headers", AsyncMock(return_value=headers)), patch(
+        "utils.ssrf_guard.SSRFGuard.validate", AsyncMock(return_value=None)
+    ):
+        with patch("httpx.AsyncClient.get", AsyncMock(return_value=response)):
+            result = await evaluator.evaluate(
+                html,
+                "https://example.com",
+                check_api=True,
+            )
+
+    issue_ids = [issue.id for issue in result.issues]
+    assert "R-DRUP-API-EXPOSED" not in issue_ids

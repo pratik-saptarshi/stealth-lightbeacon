@@ -91,3 +91,24 @@ async def test_crawler_max_urls_circuit_breaker():
             
     # Max URLs is 3, so we should never crawl more than 3 URLs
     assert len(crawled) <= 3
+
+
+@pytest.mark.asyncio
+async def test_crawler_records_broken_links():
+    crawler = Crawler("https://example.com", max_depth=1, max_urls=10, rate_delay=0)
+
+    async def mock_get(url, **kwargs):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Not Found"
+        mock_resp.url = url
+        return mock_resp
+
+    with patch("httpx.AsyncClient.get", side_effect=mock_get):
+        import httpx
+
+        async with httpx.AsyncClient() as client:
+            crawled = await crawler.crawl(client)
+
+    assert crawled == {}
+    assert crawler.broken_links["https://example.com"] == 404
