@@ -5,6 +5,7 @@ main.py — Main orchestration and Typer CLI entry point for Stealth Lightbeacon
 import asyncio
 import os
 import json
+from pathlib import Path
 import typer
 from typing import Optional, List, Any
 from rich.console import Console
@@ -168,6 +169,12 @@ def save_json_report(url: str, results: List[EvaluationResult], filepath: str):
     except Exception as e:
         console.print(f"[bold red]Error: Failed to save JSON report to {filepath}: {str(e)}[/bold red]")
 
+
+def _write_scoped_report_file(report_dir: str, report_stem: str, extension: str, content: str) -> str:
+    path = Path(report_dir) / f"{report_stem}.{extension}"
+    path.write_text(content, encoding="utf-8")
+    return str(path)
+
 @app.command()
 def evaluate(
     url: Optional[str] = typer.Argument(None, help="The target URL of the Drupal site to scan (optional if using --watch or --search-semantic)."),
@@ -179,7 +186,7 @@ def evaluate(
     max_urls: int = typer.Option(10, "--max-urls", "-n", help="Max URLs circuit-breaker boundary during crawling."),
     render: bool = typer.Option(False, "--render", help="Enable JavaScript-rendered DOM auditing using headless Playwright."),
     http2: bool = typer.Option(False, "--http2", help="Enable HTTP/2 support for connection requests."),
-    report_format: str = typer.Option("both", "--format", "-f", help="Output report format: 'json', 'html', 'both', 'llm', or 'geo-xml'."),
+    report_format: str = typer.Option("both", "--format", "-f", help="Output report format: 'json', 'html', 'pdf', 'both', 'llm', or 'geo-xml'."),
     engine: str = typer.Option("http", "--engine", help="Adversarial scraping engine strategy: 'http', 'fast', 'stealth', or 'mcp'."),
     recon: bool = typer.Option(False, "--recon", help="Run advisory anti-bot reconnaissance before the audit."),
     recon_auto: bool = typer.Option(False, "--recon-auto", help="Automatically apply the recon-recommended scraping posture."),
@@ -266,11 +273,6 @@ def evaluate(
         console.print("[bold red]Error: No evaluators selected for the requested audits.[/bold red]")
         raise typer.Exit(code=1)
     
-    target_out_dir = runtime.output_dir
-    json_path = os.path.join(target_out_dir, "report.json")
-    llm_path = os.path.join(target_out_dir, "report.md")
-    geo_xml_path = os.path.join(target_out_dir, "report.xml")
-    
     console.print(f"[bold blue]Starting audit for target website:[/bold blue] [cyan]{runtime.url}[/cyan]\n")
 
     recon_recommendation = None
@@ -352,18 +354,31 @@ def evaluate(
     
     # Save Reports
     payload = build_report_payload(runtime.url, results)
+    report_paths = ReportGenerator.build_report_paths(runtime.url, results, runtime.output_dir)
+    report_dir = report_paths["report_dir"]
+    report_stem = report_paths["report_stem"]
     try:
+        if report_format.lower() in ["json", "both", "llm", "geo-xml"]:
+            Path(report_dir).mkdir(parents=True, exist_ok=True)
+
         if report_format.lower() in ["json", "both"]:
-            save_json_report(runtime.url, results, json_path)
+            scoped_json_path = _write_scoped_report_file(report_dir, report_stem, "json", json.dumps(payload, indent=2))
+            legacy_json_path = os.path.join(runtime.output_dir, "report.json")
+            Path(legacy_json_path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            console.print(f"[bold green]✔ Diagnostic JSON report written to: {scoped_json_path}[/bold green]")
         elif report_format.lower() == "llm":
-            with open(llm_path, "w", encoding="utf-8") as handle:
+            scoped_llm_path = _write_scoped_report_file(report_dir, report_stem, "md", render_report_format("llm", payload))
+            legacy_llm_path = os.path.join(runtime.output_dir, "report.md")
+            with open(legacy_llm_path, "w", encoding="utf-8") as handle:
                 handle.write(render_report_format("llm", payload))
-            console.print(f"[bold green]✔ Diagnostic Markdown report written to: {llm_path}[/bold green]")
+            console.print(f"[bold green]✔ Diagnostic Markdown report written to: {scoped_llm_path}[/bold green]")
         elif report_format.lower() == "geo-xml":
-            with open(geo_xml_path, "w", encoding="utf-8") as handle:
+            scoped_xml_path = _write_scoped_report_file(report_dir, report_stem, "xml", render_report_format("geo-xml", payload))
+            legacy_xml_path = os.path.join(runtime.output_dir, "report.xml")
+            with open(legacy_xml_path, "w", encoding="utf-8") as handle:
                 handle.write(render_report_format("geo-xml", payload))
-            console.print(f"[bold green]✔ Diagnostic GEO XML report written to: {geo_xml_path}[/bold green]")
-        elif report_format.lower() != "html":
+            console.print(f"[bold green]✔ Diagnostic GEO XML report written to: {scoped_xml_path}[/bold green]")
+        elif report_format.lower() not in ["html", "pdf"]:
             console.print(f"[bold red]Error: Unsupported report format '{report_format}'.[/bold red]")
             raise typer.Exit(code=1)
     except ValueError as e:
@@ -371,10 +386,16 @@ def evaluate(
         raise typer.Exit(code=1)
     
     # Generate HTML Report
-    if report_format.lower() in ["html", "both"]:
+    if report_format.lower() in ["html", "pdf", "both"]:
         try:
-            ReportGenerator.generate_report(runtime.url, results, target_out_dir)
-            console.print(f"[bold green]✔ Diagnostic HTML report written to: {os.path.join(target_out_dir, 'report.html')}[/bold green]")
+            report_paths = ReportGenerator.generate_report(
+                runtime.url,
+                results,
+                runtime.output_dir,
+                report_paths=report_paths,
+            )
+            console.print(f"[bold green]✔ Diagnostic HTML report written to: {report_paths['html_path']}[/bold green]")
+            console.print(f"[bold green]✔ Diagnostic PDF report written to: {report_paths['pdf_path']}[/bold green]")
         except Exception as e:
             console.print(f"[yellow]Warning: Failed to generate HTML report: {str(e)}[/yellow]")
 

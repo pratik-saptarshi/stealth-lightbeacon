@@ -17,8 +17,16 @@ def build_agent_card() -> dict:
             "auto_select_scraper": "Whether to apply recon recommendations automatically.",
         },
         "outputs": {
-            "formats": ["json", "html", "both", "llm", "geo-xml"],
-            "artifact_paths": ["reports/report.json", "reports/report.html", "reports/report.md", "reports/report.xml"],
+            "formats": ["json", "html", "both", "llm", "geo-xml", "pdf"],
+            "artifact_paths": [
+                "reports/<domain>/<stem>.json",
+                "reports/<domain>/<stem>.html",
+                "reports/<domain>/<stem>.pdf",
+                "reports/<domain>/<stem>.md",
+                "reports/<domain>/<stem>.xml",
+                "reports/report.html",
+                "reports/report.pdf",
+            ],
         },
         "audits": [
             "seo",
@@ -35,4 +43,3 @@ def build_agent_card() -> dict:
             "critical_gate_supported": True,
         },
     }
-

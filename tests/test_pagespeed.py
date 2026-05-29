@@ -6,6 +6,7 @@ import os
 import json
 import shutil
 import pytest
+import httpx
 from modules.pagespeed import PagespeedEvaluator
 from modules.base import EvaluationResult
 
@@ -116,3 +117,33 @@ def test_pagespeed_evaluator_defaults_when_payload_is_sparse():
         "R-PERF-INP-WARN",
         "R-PERF-TTFB-WARN",
     ]
+
+
+@pytest.mark.asyncio
+async def test_pagespeed_evaluator_degrades_on_rate_limit():
+    evaluator = PagespeedEvaluator(cache_dir=TEST_CACHE_DIR)
+    url = "https://example.com/rate-limited"
+
+    response = httpx.Response(
+        429,
+        request=httpx.Request(
+            "GET",
+            "https://www.googleapis.com/pagespeedonline/v5/runPagespeed",
+        ),
+    )
+    exc = httpx.HTTPStatusError(
+        "429 Too Many Requests",
+        request=response.request,
+        response=response,
+    )
+
+    class _Client:
+        async def get(self, *args, **kwargs):
+            raise exc
+
+    result = await evaluator.evaluate("", url, client=_Client())
+
+    assert isinstance(result, EvaluationResult)
+    assert result.score == 5.0
+    assert result.metadata["api_status"] == "rate_limited"
+    assert result.issues[0].id == "R-PERF-API-RATE-LIMIT"

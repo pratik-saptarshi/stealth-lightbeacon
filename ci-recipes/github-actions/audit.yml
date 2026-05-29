@@ -33,3 +33,4 @@ jobs:
           path: |
             reports/report.json
             reports/report.html
+            reports/report.pdf

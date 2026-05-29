@@ -138,6 +138,7 @@ class SSRFNetworkBackend(httpcore.AsyncNetworkBackend):
         port: int,
         timeout: float = None,
         local_address: str = None,
+        socket_options=None,
     ) -> httpcore.AsyncNetworkStream:
         await self.guard.validate_host(host)
         pinned_ip = self.guard.get_pinned_address(host)
@@ -148,7 +149,8 @@ class SSRFNetworkBackend(httpcore.AsyncNetworkBackend):
             host=pinned_ip,
             port=port,
             timeout=timeout,
-            local_address=local_address
+            local_address=local_address,
+            socket_options=socket_options,
         )
 
 

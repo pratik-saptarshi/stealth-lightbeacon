@@ -22,6 +22,16 @@ async def test_ssrf_backend_connect_and_transport_construction(monkeypatch):
     assert stream == ("reader", "writer")
     connect.assert_awaited_once()
 
+    connect.reset_mock()
+    stream = await backend.connect_tcp(
+        "example.com",
+        443,
+        socket_options=[("TCP_NODELAY", 1)],
+    )
+    assert stream == ("reader", "writer")
+    connect.assert_awaited_once()
+    assert connect.await_args.kwargs["socket_options"] == [("TCP_NODELAY", 1)]
+
     guard_empty = ssrf_guard.SSRFGuard()
     guard_empty.validate_host = AsyncMock(return_value=None)
     with pytest.raises(socket.gaierror):

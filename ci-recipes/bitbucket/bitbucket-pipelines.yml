@@ -14,3 +14,4 @@ pipelines:
         artifacts:
           - reports/report.json
           - reports/report.html
+          - reports/report.pdf

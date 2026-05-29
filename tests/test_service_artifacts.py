@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from modules.base import EvaluationResult, Issue
 
 from service.artifacts import build_artifact_bundle
@@ -50,7 +52,19 @@ def test_build_artifact_bundle_emits_all_expected_formats(tmp_path):
         output_dir=str(tmp_path / "artifacts"),
     )
 
-    names = {artifact.name for artifact in bundle.descriptors}
-    assert {"report.json", "report.md", "report.xml", "report.html"} <= names
-    assert (tmp_path / "artifacts" / "eval_123" / "report.json").exists()
+    artifacts = {artifact.format: artifact for artifact in bundle.descriptors}
+    assert set(artifacts) == {"json", "llm", "geo-xml", "html", "pdf"}
+
+    html_artifact = artifacts["html"]
+    pdf_artifact = artifacts["pdf"]
+    assert Path(html_artifact.path).parent.name == "example-com"
+    assert Path(html_artifact.path).name.startswith("example-com_report_")
+    assert Path(pdf_artifact.path).name.startswith("example-com_report_")
+
+    report_dir = Path(html_artifact.path).parent
+    stem = Path(html_artifact.path).stem
+    assert (report_dir / f"{stem}.json").exists()
+    assert (report_dir / f"{stem}.md").exists()
+    assert (report_dir / f"{stem}.xml").exists()
     assert (tmp_path / "artifacts" / "eval_123" / "html" / "report.html").exists()
+    assert (tmp_path / "artifacts" / "eval_123" / "html" / "report.pdf").exists()

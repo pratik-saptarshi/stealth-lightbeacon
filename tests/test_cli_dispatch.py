@@ -60,3 +60,44 @@ def test_cli_evaluate_dispatches_core_runtime_args(monkeypatch, tmp_path):
     assert captured["kwargs"]["check_links"] is True
     assert captured["kwargs"]["check_api"] is True
     assert captured["kwargs"]["auth_token"] == "token-123"
+
+
+def test_cli_evaluate_accepts_pdf_format_and_generates_report(monkeypatch, tmp_path):
+    async def fake_run_evaluation(url, active_modules, **kwargs):
+        return [
+            EvaluationResult(
+                domain="Technical SEO",
+                score=8.5,
+                issues=tuple(),
+                metadata={},
+            )
+        ]
+
+    monkeypatch.setattr(main, "run_evaluation", fake_run_evaluation)
+    monkeypatch.setattr(main, "print_terminal_report", lambda *args, **kwargs: None)
+
+    with patch("modules.scraping.ScrapingFactory.get_engine", return_value=None), patch(
+        "report.generator.ReportGenerator.build_report_paths",
+        return_value={"report_dir": str(tmp_path), "report_stem": "report"},
+    ), patch(
+        "report.generator.ReportGenerator.generate_report",
+        side_effect=lambda url, results, output_dir, report_paths: {
+            **report_paths,
+            "html_path": str(tmp_path / "report.html"),
+            "pdf_path": str(tmp_path / "report.pdf"),
+        },
+    ) as mock_generate:
+        result = runner.invoke(
+            main.app,
+            [
+                "evaluate",
+                "https://example.com",
+                "--out",
+                str(tmp_path),
+                "--format",
+                "pdf",
+            ],
+        )
+
+    assert result.exit_code == 0
+    mock_generate.assert_called_once()

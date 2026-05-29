@@ -18,3 +18,4 @@ def test_ci_recipe_templates_are_checked_in_and_env_driven():
         assert "SLB_FAIL_ON_CRITICAL" in text
         assert "report.json" in text
         assert "report.html" in text
+        assert "report.pdf" in text

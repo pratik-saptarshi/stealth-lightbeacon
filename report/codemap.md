@@ -27,8 +27,10 @@ builds the HTML dashboard.
   - `llm` -> markdown summary
   - `geo-xml` -> XML tree serialization
 - `ReportGenerator.generate_report(url, results, output_dir)` computes the average
-  score and issue count, builds Jinja2 context, renders `report.html`, and writes it
-  to disk. It currently does not emit a JSON file despite the docstring.
+  score and issue count, builds Jinja2 context, renders timestamped domain-scoped
+  HTML/PDF files, and also keeps flat `report.html` / `report.pdf` compatibility
+  aliases at the output root. It currently does not emit a JSON file despite the
+  docstring.
 
 ## Integration points
 

@@ -58,7 +58,11 @@ class PagespeedEvaluator(BaseEvaluator):
                 # Google rate limits return 429
                 if response.status_code == 429:
                     if attempt == max_retries - 1:
-                        response.raise_for_status()
+                        raise httpx.HTTPStatusError(
+                            "429 Too Many Requests",
+                            request=response.request,
+                            response=response,
+                        )
                     await asyncio.sleep(backoff_delay)
                     backoff_delay *= 2
                     continue
@@ -93,6 +97,10 @@ class PagespeedEvaluator(BaseEvaluator):
             psi_data = await self._fetch_psi_with_backoff(url, client)
             self._write_to_cache(url, psi_data)
             return self._parse_psi_results(psi_data)
+        except httpx.HTTPStatusError as e:
+            if e.response is not None and e.response.status_code == 429:
+                return self._generate_rate_limit_fallback(str(e))
+            return self._generate_error_fallback(str(e))
         except Exception as e:
             # Fallback to local stub on API failures or offline runs
             return self._generate_error_fallback(str(e))
@@ -245,4 +253,25 @@ class PagespeedEvaluator(BaseEvaluator):
             score=3.0,
             issues=issues,
             metadata={"api_status": "failed", "error": error_msg}
+        )
+
+    def _generate_rate_limit_fallback(self, error_msg: str) -> EvaluationResult:
+        """
+        Creates a degraded fallback result when PSI rate limits the request.
+        """
+        issues = [Issue(
+            id="R-PERF-API-RATE-LIMIT",
+            severity=config.SEVERITY_WARNING,
+            message=(
+                "PageSpeed Insights rate limited the request; using degraded local "
+                f"fallback diagnostics: {error_msg}"
+            ),
+            location="PSI Client Connectivity",
+            remedy="Retry later, reduce request frequency, or provide a PSI API key."
+        )]
+        return EvaluationResult(
+            domain=self.domain,
+            score=5.0,
+            issues=issues,
+            metadata={"api_status": "rate_limited", "error": error_msg}
         )
