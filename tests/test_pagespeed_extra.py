@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from modules.pagespeed import PagespeedEvaluator
@@ -9,6 +10,7 @@ class _FakeResponse:
     def __init__(self, status_code, payload=None):
         self.status_code = status_code
         self._payload = payload or {}
+        self.request = httpx.Request("GET", "https://pagespeed.test")
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -101,7 +103,7 @@ async def test_pagespeed_fetch_uses_api_key_and_raises_after_retries(tmp_path, m
     monkeypatch.setattr("modules.pagespeed.config.PAGESPEED_API_KEY", "secret-key")
     monkeypatch.setattr("modules.pagespeed.asyncio.sleep", AsyncMock())
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(httpx.HTTPStatusError):
         await evaluator._fetch_psi_with_backoff("https://example.com", client)
 
     assert client.get.await_count == 3
@@ -114,7 +116,7 @@ async def test_pagespeed_fetch_raises_after_three_rate_limits(tmp_path, monkeypa
     client.get = AsyncMock(return_value=_FakeResponse(429))
     monkeypatch.setattr("modules.pagespeed.asyncio.sleep", AsyncMock())
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(httpx.HTTPStatusError):
         await evaluator._fetch_psi_with_backoff("https://example.com", client)
 
     assert client.get.await_count == 3

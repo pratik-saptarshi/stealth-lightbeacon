@@ -1,8 +1,11 @@
 import json
+import socket
 import threading
 import time
 from unittest.mock import patch
 from urllib.request import urlopen
+
+import pytest
 
 from contracts.backend_api import API_VERSION, APP_VERSION, build_openapi_document
 
@@ -12,6 +15,15 @@ from companion.catalog import SUPPORTED_OUTPUT_FORMATS, SUPPORTED_PROFILES
 
 
 BASE_URL = "http://127.0.0.1:8000"
+
+
+def _loopback_bind_available() -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+    except OSError:
+        return False
+    return True
 
 
 def sample_request():
@@ -341,6 +353,9 @@ def test_artifacts_route_rejects_non_terminal_evaluations():
 
 
 def test_companion_server_serves_health_on_loopback():
+    if not _loopback_bind_available():
+        pytest.skip("loopback binding is restricted in this environment")
+
     server = create_server(host="127.0.0.1", port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

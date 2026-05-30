@@ -8,6 +8,7 @@ testpaths = [
 markers = [
     "unit: mark a test as a unit test.",
     "integration: mark a test as an integration test.",
+    "e2e: mark a test as an end-to-end browser test.",
 ]
 
 [tool.coverage.run]
