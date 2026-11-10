@@ -3,9 +3,15 @@ name: Dependabot BOM Sync
 # Dependabot pip PRs change requirements.txt only; CI requires
 # bill-of-material.md to stay in sync (utils/update_bom.py + git diff --exit-code).
 # Regenerate and push the BOM back onto Dependabot PR branches so they can pass CI.
+#
+# Uses pull_request_target so the workflow runs in the base-repo context with a
+# write-capable GITHUB_TOKEN (Dependabot-triggered pull_request runs get a
+# read-only token). Restricted to dependabot[bot] and it only regenerates the
+# BOM from the PR's requirements.txt.
 
 on:
-  pull_request:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
     branches: [main, master]
 
 permissions:
@@ -20,8 +26,10 @@ jobs:
       - name: Check out PR branch
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.head_ref }}
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
