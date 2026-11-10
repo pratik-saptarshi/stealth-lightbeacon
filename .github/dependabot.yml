@@ -1,0 +1,50 @@
+# Dependabot version updates.
+# Security updates are separate: controlled by the "Dependabot security updates"
+# repo setting, they ignore `cooldown` and `open-pull-requests-limit`.
+# `cooldown` delays brand-new releases (supply-chain hygiene).
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      pip-patch:
+        update-types: ["patch"]
+      pip-minor:
+        update-types: ["minor"]
+  - package-ecosystem: "docker"
+    directory: "/.devcontainer"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 14
+    labels: ["dependencies", "github_actions"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
