@@ -1,0 +1,42 @@
+name: Dependabot BOM Sync
+
+# Dependabot pip PRs change requirements.txt only; CI requires
+# bill-of-material.md to stay in sync (utils/update_bom.py + git diff --exit-code).
+# Regenerate and push the BOM back onto Dependabot PR branches so they can pass CI.
+
+on:
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bom-sync:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Regenerate BOM and push if changed
+        run: |
+          python utils/update_bom.py
+          if git diff --quiet -- bill-of-material.md; then
+            echo "BOM already in sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bill-of-material.md
+          git commit -m "chore(deps): sync bill-of-material.md"
+          git push
